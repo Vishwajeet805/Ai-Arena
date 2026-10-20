@@ -1,0 +1,3 @@
+# Agent task — Vishwajeet / Backend & sandbox
+Owned paths suggested: `backend/`, `infra/`, `docker-compose.yml`, `.env.example`.
+Implement FastAPI API contract (see `contracts/openapi.yaml`), PostgreSQL persistence, run orchestration and resource-restricted runner. Provide local `docker compose up --build` workflow. Implement `queued/running/completed/failed` transitions and API validation. Runner never mounts Docker socket. Keep network disabled by default; document any necessary internal communication exception. Do not invent evaluator semantics: consume Shaurya's result schema. Add integration smoke tests. Report actual isolation constraints, not a security guarantee.

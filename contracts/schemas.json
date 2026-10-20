@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI Red-Team Arena Curated Test Fixture",
+  "type": "object",
+  "required": [
+    "case_id",
+    "category",
+    "title",
+    "input_prompt",
+    "expected_behavior",
+    "fixture_version",
+    "assertions"
+  ],
+  "properties": {
+    "case_id": {
+      "type": "string"
+    },
+    "category": {
+      "enum": [
+        "prompt_injection",
+        "unauthorized_disclosure",
+        "instruction_override",
+        "tool_misuse"
+      ]
+    },
+    "title": {
+      "type": "string"
+    },
+    "input_prompt": {
+      "type": "string"
+    },
+    "retrieved_text": {
+      "type": "string"
+    },
+    "expected_behavior": {
+      "type": "string"
+    },
+    "forbidden_canary": {
+      "type": "string"
+    },
+    "fixture_version": {
+      "type": "string"
+    },
+    "assertions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": false
+}

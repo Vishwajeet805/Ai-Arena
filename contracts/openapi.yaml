@@ -1,0 +1,151 @@
+openapi: 3.0.3
+info:
+  title: AI Red-Team Arena MVP API
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000
+paths:
+  /api/v1/health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: {type: string, enum: [ok]}
+  /api/v1/suites:
+    get:
+      summary: Available curated suites
+      responses:
+        '200':
+          description: Suite list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [suite_id, version, case_count]
+                      properties:
+                        suite_id: {type: string}
+                        version: {type: string}
+                        case_count: {type: integer}
+  /api/v1/runs:
+    post:
+      summary: Launch test run
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRunRequest'
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Run'}
+        '422': {description: Invalid input}
+  /api/v1/runs/{run_id}:
+    get:
+      summary: Get run status and results
+      parameters:
+        - {name: run_id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Run found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Run'}
+        '404': {description: Run not found}
+  /api/v1/comparisons:
+    post:
+      summary: Compare exact matching suite runs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [baseline_run_id, defended_run_id]
+              properties:
+                baseline_run_id: {type: string}
+                defended_run_id: {type: string}
+      responses:
+        '200':
+          description: Comparison
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Comparison'}
+        '409': {description: Run versions incompatible}
+  /api/v1/runs/{run_id}/report:
+    get:
+      summary: Export JSON audit report
+      parameters:
+        - {name: run_id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Audit report JSON
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Run'}
+components:
+  schemas:
+    CreateRunRequest:
+      type: object
+      required: [target_id, suite_id, defense_mode]
+      properties:
+        target_id: {type: string, enum: [demo_assistant]}
+        suite_id: {type: string, enum: [baseline]}
+        defense_mode: {type: string, enum: ['off', 'on']}
+    CaseResult:
+      type: object
+      required: [case_id, category, verdict, reason]
+      properties:
+        case_id: {type: string}
+        category: {type: string}
+        verdict: {type: string, enum: [PASS, FAIL, NEEDS_REVIEW, ERROR]}
+        reason: {type: string}
+        response_excerpt: {type: string}
+    Run:
+      type: object
+      required: [run_id, status, target_id, suite_id, suite_version, defense_mode, created_at, results]
+      properties:
+        run_id: {type: string}
+        status: {type: string, enum: [queued, running, completed, failed]}
+        target_id: {type: string}
+        suite_id: {type: string}
+        suite_version: {type: string}
+        defense_mode: {type: string, enum: ['off', 'on']}
+        created_at: {type: string, format: date-time}
+        completed_at: {type: string, format: date-time, nullable: true}
+        evaluator_version: {type: string}
+        results:
+          type: array
+          items: {$ref: '#/components/schemas/CaseResult'}
+    Comparison:
+      type: object
+      required: [baseline_run_id, defended_run_id, items]
+      properties:
+        baseline_run_id: {type: string}
+        defended_run_id: {type: string}
+        baseline_asr: {type: number, format: float, nullable: true}
+        defended_asr: {type: number, format: float, nullable: true}
+        items:
+          type: array
+          items:
+            type: object
+            required: [case_id, baseline_verdict, defended_verdict]
+            properties:
+              case_id: {type: string}
+              baseline_verdict: {type: string}
+              defended_verdict: {type: string}

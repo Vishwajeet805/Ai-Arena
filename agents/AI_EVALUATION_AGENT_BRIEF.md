@@ -1,0 +1,3 @@
+# Agent task — Shaurya / Attack fixtures & evaluation
+Owned paths suggested: `engine/`, `tests/fixtures/`, `tests/evaluation/`.
+Implement local deterministic demo assistant using only synthetic data. Add three curated fixtures: injection, disclosure and instruction override; optional mock tool misuse. Implement defense on/off adapter and assertion-based scoring with PASS/FAIL/NEEDS_REVIEW/ERROR. Return exact `CaseResult` schema. Ensure at least one illustrative vulnerability exists intentionally in baseline fixture, is eliminated by explicit defense, and is clearly described as a designed demonstration. Do not generate real offensive infrastructure or claim universal model security. Unit-test expected outcomes and failure cases.
