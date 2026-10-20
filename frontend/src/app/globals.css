@@ -1,0 +1,29 @@
+:root{color-scheme:dark;--bg:#09121c;--panel:#101f2d;--line:#233747;--ink:#f1f5f7;--muted:#9fb0be;--orange:#f08a43;--green:#54d2a0}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:Arial,Helvetica,sans-serif}
+body{background:radial-gradient(ellipse at 80% 0%,#172c3d 0,transparent 38%),var(--bg)}
+a{color:var(--orange);text-decoration:none}
+.shell{max-width:1180px;margin:0 auto;padding:30px 28px 24px}
+.nav{display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line);padding-bottom:22px}
+.brand-mark{height:42px;width:42px;border:1px solid #92542f;background:#412c23;color:#ffb17d;border-radius:10px;display:grid;place-items:center;font-weight:800}
+.brand-name{font-size:13px;font-weight:800;letter-spacing:1.8px}
+.brand-sub{font-size:10px;color:var(--muted);letter-spacing:1.5px;margin-top:5px}
+.status{margin-left:auto;border:1px solid var(--line);padding:8px 11px;border-radius:99px;font-size:10px;letter-spacing:1px;color:var(--muted)}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:6px}
+.hero{padding:54px 0 38px;max-width:760px}
+.eyebrow{font-size:11px;letter-spacing:2.5px;color:var(--orange);font-weight:700}
+h1{font-size:clamp(40px,6vw,70px);line-height:1.04;letter-spacing:-2px;margin:18px 0}
+h1 span{color:var(--orange)}
+.intro{font-size:17px;line-height:1.7;color:var(--muted);max-width:680px}
+.notice{margin-top:28px;padding:16px 18px;border:1px solid #67472f;border-left:3px solid var(--orange);background:#171f27;border-radius:8px}
+.notice strong{font-size:13px;color:#ffb17d}
+.notice p{font-size:13px;line-height:1.6;color:#c7d0d7;margin:7px 0 0}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.card{background:linear-gradient(155deg,#122331,#0c1823);border:1px solid var(--line);border-radius:12px;padding:22px;min-height:205px}
+.number{color:var(--orange);font-size:12px;letter-spacing:1.5px;font-weight:800}
+.card h2{font-size:19px;margin:20px 0 9px}
+.card p{min-height:48px;font-size:13px;line-height:1.6;color:var(--muted)}
+.pill{font-size:9px;font-weight:700;letter-spacing:.9px;border-radius:5px;padding:7px 8px;display:inline-block}
+.planned{border:1px solid #455563;color:#b8c4ce}
+footer{display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--line);margin-top:30px;padding-top:20px;color:var(--muted);font-size:12px}
+@media(max-width:700px){.shell{padding:20px 16px}.grid{grid-template-columns:1fr}.status{font-size:8px;padding:7px}h1{letter-spacing:-1px}.hero{padding-top:38px}.card{min-height:auto}}
