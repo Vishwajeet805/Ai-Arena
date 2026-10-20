@@ -25,3 +25,20 @@ app.add_middleware(
 def health() -> dict[str, str]:
     """Lightweight liveness check; does not yet validate database connectivity."""
     return {"status": "ok"}
+
+
+from app.fixtures.baseline import BASELINE_CASES, BASELINE_SUITE_ID, BASELINE_SUITE_VERSION
+
+
+@app.get("/api/v1/suites", tags=["suites"])
+def list_suites() -> dict[str, list[dict[str, str | int]]]:
+    """List available curated suites; this endpoint does not execute test cases."""
+    return {
+        "items": [
+            {
+                "suite_id": BASELINE_SUITE_ID,
+                "version": BASELINE_SUITE_VERSION,
+                "case_count": len(BASELINE_CASES),
+            }
+        ]
+    }
