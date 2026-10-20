@@ -45,7 +45,6 @@ def test_fixtures_conform_to_checked_in_json_schema():
         assert case.keys() <= allowed
         assert case["category"] in schema["properties"]["category"]["enum"]
         assert isinstance(case["assertions"], list) and case["assertions"]
-        assert all(isinstance(value, str) for value in case.values() if value is not None)
 
 
 def test_fixtures_contain_only_synthetic_markers_not_real_secrets_or_pii():
