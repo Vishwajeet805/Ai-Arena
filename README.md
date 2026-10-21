@@ -1,101 +1,197 @@
-# AI Red-Team Arena — LogUnifyers
+<div align="center">
 
-A hackathon MVP for controlled, repeatable testing of AI application security using synthetic data.
+# 🛡️ AI Red-Team Arena
+### Build AI. Break AI. Harden AI.
 
-## Live demo
+**A controlled, repeatable security-evaluation workbench for AI applications.**
 
-- **Dashboard:** https://ai-arena-five-pi.vercel.app/
-- **API health:** https://ai-arena-pa82.onrender.com/api/v1/health
-- **Interactive API docs:** https://ai-arena-pa82.onrender.com/docs
+[🚀 Live Dashboard](https://ai-arena-five-pi.vercel.app/) · [🩺 API Health](https://ai-arena-pa82.onrender.com/api/v1/health) · [📘 API Docs](https://ai-arena-pa82.onrender.com/docs)
 
-The hosted dashboard has been manually smoke-tested: suite loading, baseline and defended runs, run history, comparison, and JSON export worked. The API is hosted on Render and the frontend on Vercel. Render's free service may take a little time to wake up after inactivity.
+*LogUnifyers · Hack in Hills '26 — Round 2*
 
-### Deployment configuration
+</div>
 
-- Vercel frontend project root: `frontend`
-- Frontend environment variable: `NEXT_PUBLIC_API_BASE_URL=https://ai-arena-pa82.onrender.com`
-- Render API service root: `backend`
-- Render API environment variables: `DATABASE_URL` (Render PostgreSQL connection URL) and `CORS_ORIGINS=https://ai-arena-five-pi.vercel.app`
+---
 
-Do not publish database credentials or other secrets in this README.
+## The idea
 
-## Current implementation status
+AI assistants can be helpful—and still be vulnerable. A malicious instruction hidden in a prompt or retrieved document may try to override policy, expose information, or misuse a tool. Developers need a way to ask a practical security question before shipping:
 
-- FastAPI persists deterministic demo runs and exposes run history, comparisons and JSON reports.
-- Curated suite has four synthetic cases; the deterministic demo target never calls an external model, tool, shell, or third-party target.
-- Attack Success Rate uses only decisive PASS/FAIL outcomes. ERROR and NEEDS_REVIEW are excluded from the denominator and returned as separate excluded counts.
-- A separate non-root runner image and constrained Compose profile are provided in `backend/runner`. It accepts only fixed case identifiers and defense mode.
-- **Important limitation:** the API has not yet been wired to dispatch evaluations to the runner container. API runs still execute in-process, so do not describe API execution as sandboxed or isolated.
-- Docker shares the host kernel and is defense-in-depth, not a guarantee of perfect isolation.
+> **Does this attack work—and does our defense stop it when we run the same test again?**
 
-## Stack
+**AI Red-Team Arena** is a developer-facing MVP for running controlled adversarial scenarios against a purpose-built synthetic assistant. It lets a user run a baseline, enable a demo defense, rerun the same test suite, compare outcomes, and keep machine-readable evidence.
 
-- Frontend: Next.js + React + TypeScript
-- API: Python + FastAPI
-- Database: PostgreSQL through Docker Compose; SQLite is used only as a local fallback
-- Runner: separate Docker image with non-root user, no network, read-only root filesystem, dropped capabilities, no-new-privileges, PID/memory/CPU limits, and no host mounts or Docker socket
+It is designed to make security checks **repeatable, inspectable, and easier to discuss**—not to launch attacks against real systems.
 
-## Prerequisites
+## At a glance
 
-Docker Desktop / Docker Engine with Compose v2. For local development, Python 3.12+ and Node.js 22+.
+| | |
+|---|---|
+| **Who it helps** | AI developers, product-security engineers, security learners and research teams |
+| **What it tests** | Curated synthetic prompt-injection, unauthorized-disclosure, instruction-override and tool-misuse scenarios |
+| **What you get** | Per-case verdicts, baseline-versus-defended comparison, run history and JSON reports |
+| **Current target** | A deterministic demo assistant using synthetic fixtures—no external model or third-party target |
+| **Live deployment** | Next.js dashboard on Vercel · FastAPI API on Render · PostgreSQL persistence |
 
-## Quick start
+## Try the live demo
 
-1. Copy `.env.example` to `.env` and change local-only passwords if desired.
-2. Run `docker compose up --build`.
-3. Open the dashboard at http://localhost:3000.
-4. Check the API at http://localhost:8000/api/v1/health and interactive docs at http://localhost:8000/docs.
-5. Stop with `docker compose down`. Use `docker compose down -v` only if you intend to delete the local database volume.
+1. Open the [dashboard](https://ai-arena-five-pi.vercel.app/).
+2. Select the synthetic demo target and the baseline suite.
+3. Run once with **Defense mode: Off**.
+4. Run again with **Defense mode: On**.
+5. Compare the baseline and defended runs; inspect case verdicts and run history.
+6. Export the comparison or run report as JSON.
 
-The runner is opt-in and does not start during the default app startup. Build it separately, then run the service in a one-shot container:
+The hosted flow has been manually smoke-tested for suite loading, baseline/defended runs, history, comparison and JSON export. Render's free service may need a short wake-up period after inactivity.
 
-```sh
-docker compose --profile runner build runner
-printf '%s' '{"case_ids":["BASE-PINJ-001"],"defense_mode":"on"}' | docker compose --profile runner run --rm -T runner
+## How the experiment works
+
+```mermaid
+flowchart LR
+    A[Choose synthetic target + suite] --> B[Run baseline]
+    B --> C[Record per-case outcomes]
+    C --> D[Enable demo defense]
+    D --> E[Repeat same suite]
+    E --> F[Compare by case ID]
+    F --> G[Review history + export JSON]
 ```
 
-The runner service has no network, published ports, host bind mounts, credentials, or Docker socket. It accepts fixture IDs only and does not execute arbitrary code. Verify these settings on the actual Docker host before presenting them as runtime evidence.
+Each run records its target, suite, defense mode, evaluator version, status and case-level outcomes. Comparisons require compatible run metadata and matching case IDs.
 
-## Local backend development
+### What the verdicts mean
 
+- **PASS / FAIL:** decisive outcomes used by the current Attack Success Rate calculation.
+- **NEEDS_REVIEW / ERROR:** excluded from the decisive ASR denominator and surfaced separately, rather than silently counted as success or failure.
+- **Case evidence:** category, verdict, reason and response excerpt are shown for review.
+
+The evaluator is deterministic rule-based demo logic. These results demonstrate the workflow and data model; they are **not** a claim of measured security against real LLMs.
+
+## Why this approach?
+
+A security demo is more useful when it can show the same attack before and after a change, preserve what happened, and make the result inspectable. The MVP brings together:
+
+- **Controlled fixtures:** scenarios use synthetic data and fixed case identifiers.
+- **Before/after testing:** compare baseline and defended behavior on the same suite.
+- **Traceable evidence:** persistent run history and JSON report export.
+- **Explicit uncertainty:** ambiguous or errored cases are not forced into a binary ASR score.
+- **Safety-first scope:** no arbitrary payload execution, live exploitation, external scanning or real confidential data.
+
+## Product boundaries — read before interpreting results
+
+This is a **hackathon MVP / prototype**, not a production certification tool.
+
+- The demo target is synthetic and deterministic; it does not call a live LLM, external tool or third-party application.
+- The API currently evaluates runs in-process. The separate constrained runner image exists, but API dispatch to it is **not wired up**. Therefore, hosted API runs must **not** be described as sandboxed or isolated.
+- The runner is a restricted fixture protocol, not an arbitrary-code execution engine. Docker restrictions are defense-in-depth, not a guarantee of perfect isolation.
+- The curated suite currently contains four synthetic cases. Results do not establish broad coverage or real-world model robustness.
+
+Use only fixtures and systems you own or are explicitly authorized to test. Do not submit secrets, production records or third-party targets.
+
+## Architecture
+
+```text
+Browser
+  └─ Next.js + React + TypeScript (Vercel)
+       └─ NEXT_PUBLIC_API_BASE_URL
+            └─ FastAPI REST API (Render)
+                 └─ SQLAlchemy → PostgreSQL (Render)
+                      └─ runs, case results, comparisons, reports
+```
+
+| Layer | Technology |
+|---|---|
+| Web dashboard | Next.js, React, TypeScript |
+| API | Python, FastAPI |
+| Persistence | SQLAlchemy; PostgreSQL in hosted deployment, SQLite local fallback |
+| Evaluation | Deterministic synthetic rules and curated fixtures |
+| Optional runner | Docker image with non-root user and constrained runtime settings |
+
+## API surface
+
+Interactive schema: [Swagger UI](https://ai-arena-pa82.onrender.com/docs)
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/v1/health` | Health check |
+| GET | `/api/v1/suites` | List available suites |
+| POST | `/api/v1/runs` | Execute a demo evaluation |
+| GET | `/api/v1/runs?limit=20` | Browse persisted run history |
+| GET | `/api/v1/runs/{run_id}` | Retrieve a run |
+| POST | `/api/v1/comparisons` | Compare compatible runs |
+| GET | `/api/v1/runs/{run_id}/report` | Retrieve JSON report |
+
+## Run locally
+
+### Prerequisites
+- Python 3.12+
+- Node.js 22+
+- Docker Desktop / Docker Engine with Compose v2 for the containerized path
+
+### Containerized setup
 ```bash
+cp .env.example .env
+docker compose up --build
+```
+Then open the dashboard at `http://localhost:3000`, API health at `http://localhost:8000/api/v1/health`, and API docs at `http://localhost:8000/docs`.
+
+Stop with `docker compose down`. Use `docker compose down -v` only when you intend to delete the local database volume.
+
+### Backend development
+```powershell
 cd backend
 python -m venv .venv
-# Windows PowerShell: .\\.venv\\Scripts\\Activate.ps1
-# macOS/Linux: source .venv/bin/activate
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements-dev.txt
 uvicorn app.main:app --reload --port 8000
 pytest -q
 ```
 
-## Local frontend development
-
+### Frontend development
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-## API endpoints
+### Optional constrained runner
+The runner is opt-in and is not launched by default:
+```sh
+docker compose --profile runner build runner
+printf '%s' '{"case_ids":["BASE-PINJ-001"],"defense_mode":"on"}' | docker compose --profile runner run --rm -T runner
+```
+Review the runner configuration and verify restrictions on your own Docker host before treating them as runtime evidence.
 
-- `GET /api/v1/health`
-- `GET /api/v1/suites`
-- `POST /api/v1/runs`
-- `GET /api/v1/runs?limit=20`
-- `GET /api/v1/runs/{run_id}`
-- `POST /api/v1/comparisons`
-- `GET /api/v1/runs/{run_id}/report`
+## Hosted deployment settings
 
-Comparisons reject runs with incompatible suite, target, or evaluator versions, and reject runs with non-matching case-ID sets. Evaluator and target version metadata are intended for auditability.
+- **Vercel frontend root:** `frontend`
+- **Vercel variable:** `NEXT_PUBLIC_API_BASE_URL=https://ai-arena-pa82.onrender.com`
+- **Render API root:** `backend`
+- **Render environment:** PostgreSQL `DATABASE_URL` and `CORS_ORIGINS=https://ai-arena-five-pi.vercel.app`
 
-## Safety and known issues
+Never commit database URLs containing credentials, API keys or other secrets.
 
-Use only synthetic fixtures and systems you are authorized to test. No arbitrary script execution, production data, genuine secrets, live exploitation, external scanning, or third-party target execution is part of this prototype. The runner container is currently a constrained protocol container, not an execution engine for user-supplied workloads, and it is not yet orchestrated by the API. The end-to-end acceptance flow is **not verified** until backend tests, frontend checks, Compose startup, and the runner command have been executed on a real development host.
+## Team
 
-## Project documents
+**LogUnifyers** — Hack in Hills '26 Round 2
 
-- `00_START_HERE.md`: project source-of-truth entry point
-- `docs/`: product, scope, architecture, evaluation, plan and release checklist
-- `contracts/openapi.yaml`: API contract
-- `contracts/schemas.json`: curated scenario schema
-- `agents/AGENTS.md`: coding-agent instructions
+- **Vishwajeet Singh** — Backend & Security Infrastructure
+- **Shaurya Dubey** — AI Evaluation & Red-Team Engine
+- **Pawani Sanghi** — Frontend & Product Design
+
+## Project map
+
+- `00_START_HERE.md` — project overview and working rules
+- `docs/` — product brief, scope, architecture, evaluation and implementation plan
+- `contracts/openapi.yaml` — API contract
+- `contracts/schemas.json` — scenario schema
+- `agents/AGENTS.md` — instructions for coding agents
+
+---
+
+<div align="center">
+
+**Build AI. Break AI. Harden AI.**
+
+*Test safely. Compare honestly. Keep the evidence.*
+
+</div>
