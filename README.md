@@ -2,6 +2,23 @@
 
 A hackathon MVP for controlled, repeatable testing of AI application security using synthetic data.
 
+## Live demo
+
+- **Dashboard:** https://ai-arena-five-pi.vercel.app/
+- **API health:** https://ai-arena-pa82.onrender.com/api/v1/health
+- **Interactive API docs:** https://ai-arena-pa82.onrender.com/docs
+
+The hosted dashboard has been manually smoke-tested: suite loading, baseline and defended runs, run history, comparison, and JSON export worked. The API is hosted on Render and the frontend on Vercel. Render's free service may take a little time to wake up after inactivity.
+
+### Deployment configuration
+
+- Vercel frontend project root: `frontend`
+- Frontend environment variable: `NEXT_PUBLIC_API_BASE_URL=https://ai-arena-pa82.onrender.com`
+- Render API service root: `backend`
+- Render API environment variables: `DATABASE_URL` (Render PostgreSQL connection URL) and `CORS_ORIGINS=https://ai-arena-five-pi.vercel.app`
+
+Do not publish database credentials or other secrets in this README.
+
 ## Current implementation status
 
 - FastAPI persists deterministic demo runs and exposes run history, comparisons and JSON reports.
@@ -44,7 +61,7 @@ The runner service has no network, published ports, host bind mounts, credential
 ```bash
 cd backend
 python -m venv .venv
-# Windows PowerShell: .\.venv\Scripts\Activate.ps1
+# Windows PowerShell: .\\.venv\\Scripts\\Activate.ps1
 # macOS/Linux: source .venv/bin/activate
 pip install -r requirements-dev.txt
 uvicorn app.main:app --reload --port 8000
