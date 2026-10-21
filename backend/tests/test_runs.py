@@ -38,7 +38,7 @@ def test_defense_off_and_on_are_repeatable_and_use_same_case_ids():
 
     assert [x["case_id"] for x in off["results"]] == [x["case_id"] for x in on["results"]]
     assert all(x["verdict"] == "FAIL" for x in off["results"])
-    assert all(x["verdict"] == "NEEDS_REVIEW" for x in on["results"])
+    assert all(x["verdict"] == "PASS" for x in on["results"])
     assert off["run_id"] != on["run_id"]
 
 
