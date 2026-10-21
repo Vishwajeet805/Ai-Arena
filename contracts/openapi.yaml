@@ -40,6 +40,22 @@ paths:
                         version: {type: string}
                         case_count: {type: integer}
   /api/v1/runs:
+    get:
+      summary: List recent persisted runs
+      parameters:
+        - {name: limit, in: query, required: false, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
+      responses:
+        '200':
+          description: Recent runs
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: '#/components/schemas/Run'}
     post:
       summary: Launch deterministic synthetic test run
       requestBody:
@@ -56,7 +72,7 @@ paths:
         '422': {description: Invalid input}
   /api/v1/runs/{run_id}:
     get:
-      summary: Get in-memory run status and results
+      summary: Get persisted run status and results
       parameters:
         - {name: run_id, in: path, required: true, schema: {type: string}}
       responses:
@@ -68,24 +84,27 @@ paths:
         '404': {description: Run not found}
   /api/v1/comparisons:
     post:
-      summary: Compare exact matching suite runs
+      summary: Compare runs with matching suite, target, evaluator and case IDs
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              additionalProperties: false
               required: [baseline_run_id, defended_run_id]
               properties:
-                baseline_run_id: {type: string}
-                defended_run_id: {type: string}
+                baseline_run_id: {type: string, minLength: 1}
+                defended_run_id: {type: string, minLength: 1}
       responses:
         '200':
-          description: Comparison
+          description: Comparison with decisive ASR and excluded counts
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Comparison'}
-        '409': {description: Run versions incompatible}
+        '404': {description: Run not found}
+        '409': {description: Run versions or case IDs incompatible}
+        '422': {description: Invalid input}
   /api/v1/runs/{run_id}/report:
     get:
       summary: Export JSON audit report
@@ -97,6 +116,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Run'}
+        '404': {description: Run not found}
 components:
   schemas:
     CreateRunRequest:
@@ -109,7 +129,7 @@ components:
         defense_mode: {type: string, enum: ['off', 'on']}
     CaseResult:
       type: object
-      required: [case_id, category, verdict, reason]
+      required: [case_id, category, verdict, reason, response_excerpt]
       properties:
         case_id: {type: string}
         category: {type: string}
@@ -118,7 +138,7 @@ components:
         response_excerpt: {type: string}
     Run:
       type: object
-      required: [run_id, status, target_id, suite_id, suite_version, defense_mode, created_at, results]
+      required: [run_id, status, target_id, suite_id, suite_version, defense_mode, created_at, completed_at, evaluator_version, target_version, results]
       properties:
         run_id: {type: string}
         status: {type: string, enum: [queued, running, completed, failed]}
@@ -129,17 +149,20 @@ components:
         created_at: {type: string, format: date-time}
         completed_at: {type: string, format: date-time, nullable: true}
         evaluator_version: {type: string}
+        target_version: {type: string}
         results:
           type: array
           items: {$ref: '#/components/schemas/CaseResult'}
     Comparison:
       type: object
-      required: [baseline_run_id, defended_run_id, items]
+      required: [baseline_run_id, defended_run_id, baseline_asr, defended_asr, baseline_excluded_count, defended_excluded_count, items]
       properties:
         baseline_run_id: {type: string}
         defended_run_id: {type: string}
         baseline_asr: {type: number, format: float, nullable: true}
         defended_asr: {type: number, format: float, nullable: true}
+        baseline_excluded_count: {type: integer, minimum: 0}
+        defended_excluded_count: {type: integer, minimum: 0}
         items:
           type: array
           items:
@@ -147,5 +170,5 @@ components:
             required: [case_id, baseline_verdict, defended_verdict]
             properties:
               case_id: {type: string}
-              baseline_verdict: {type: string}
-              defended_verdict: {type: string}
+              baseline_verdict: {type: string, enum: [PASS, FAIL, NEEDS_REVIEW, ERROR]}
+              defended_verdict: {type: string, enum: [PASS, FAIL, NEEDS_REVIEW, ERROR]}
