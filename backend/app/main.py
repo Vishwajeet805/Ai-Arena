@@ -258,7 +258,19 @@ def create_run(request: CreateRunRequest) -> dict:
 def get_run(run_id: str) -> dict:
     with SessionLocal() as db:
         return _serialize_run(_load_run(db, run_id))
+@app.get("/api/v1/runs", tags=["runs"])
+def list_runs(limit: int = 20) -> dict:
+    """Return the most recent persisted runs."""
+    limit = max(1, min(limit, 100))
 
+    with SessionLocal() as db:
+        runs = db.scalars(
+            select(RunRecord)
+            .order_by(RunRecord.created_at.desc())
+            .limit(limit)
+        ).all()
+
+        return {"items": [_serialize_run(run) for run in runs]}
 def calculate_asr(verdicts: dict[str, str]) -> tuple[float | None, int]:
     """
     Calculate Attack Success Rate using only decisive verdicts (PASS/FAIL).
