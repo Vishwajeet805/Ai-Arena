@@ -1,9 +1,5 @@
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from app import main
-from app.main import Base, app
+from app.main import app
 from app.fixtures.baseline import BASELINE_CASES
 
 client = TestClient(app)
@@ -82,7 +78,6 @@ def test_unknown_or_incompatible_comparison_runs_return_404_or_409():
     base = {"target_id": "demo_assistant", "suite_id": "baseline"}
     off = client.post("/api/v1/runs", json={**base, "defense_mode": "off"}).json()
     on = client.post("/api/v1/runs", json={**base, "defense_mode": "on"}).json()
-    # API currently only permits one suite/target, so same-version comparison is the supported path.
     assert client.post("/api/v1/comparisons", json={
         "baseline_run_id": off["run_id"], "defended_run_id": on["run_id"]
     }).status_code == 200
