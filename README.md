@@ -30,7 +30,7 @@ Docker Desktop / Docker Engine with Compose v2. For local development, Python 3.
 4. Check the API at http://localhost:8000/api/v1/health and interactive docs at http://localhost:8000/docs.
 5. Stop with `docker compose down`. Use `docker compose down -v` only if you intend to delete the local database volume.
 
-The runner profile is optional and does not start during the default app startup. Build and exercise it separately:
+The runner is opt-in and does not start during the default app startup. Build it separately, then run the service in a one-shot container:
 
 ```sh
 docker compose --profile runner build runner
@@ -69,7 +69,7 @@ npm run dev
 - `POST /api/v1/comparisons`
 - `GET /api/v1/runs/{run_id}/report`
 
-Comparisons reject runs with incompatible suite, target, or evaluator versions, and reject runs with non-matching case-ID sets. The evaluator and target version metadata are intended for auditability.
+Comparisons reject runs with incompatible suite, target, or evaluator versions, and reject runs with non-matching case-ID sets. Evaluator and target version metadata are intended for auditability.
 
 ## Safety and known issues
 
