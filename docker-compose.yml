@@ -29,6 +29,24 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  runner:
+    build:
+      context: ./backend/runner
+    image: ai-arena-runner:phase4
+    network_mode: none
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 32
+    mem_limit: 128m
+    cpus: 0.5
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    # No Docker socket, host mounts, credentials, or published ports.
+    profiles: ["runner"]
+
   web:
     build:
       context: ./frontend
