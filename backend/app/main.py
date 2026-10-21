@@ -259,42 +259,87 @@ def get_run(run_id: str) -> dict:
     with SessionLocal() as db:
         return _serialize_run(_load_run(db, run_id))
 
+def calculate_asr(verdicts: dict[str, str]) -> tuple[float | None, int]:
+    """
+    Calculate Attack Success Rate using only decisive verdicts (PASS/FAIL).
+
+    ERROR and NEEDS_REVIEW are excluded from the ASR denominator and
+    returned separately as an excluded count.
+    """
+    decisive = [
+        verdict
+        for verdict in verdicts.values()
+        if verdict in {"PASS", "FAIL"}
+    ]
+
+    excluded_count = len(verdicts) - len(decisive)
+
+    asr = (
+        sum(verdict == "FAIL" for verdict in decisive) / len(decisive)
+        if decisive
+        else None
+    )
+
+    return asr, excluded_count
 
 @app.post("/api/v1/comparisons", tags=["comparisons"])
 def compare_runs(request: CompareRunsRequest) -> dict:
     with SessionLocal() as db:
         baseline = _load_run(db, request.baseline_run_id)
         defended = _load_run(db, request.defended_run_id)
+
         if (
             baseline.suite_id != defended.suite_id
             or baseline.suite_version != defended.suite_version
             or baseline.target_id != defended.target_id
         ):
-            raise HTTPException(status_code=409, detail="Run versions or targets are incompatible")
-        baseline_results = {item.case_id: item.verdict for item in baseline.results}
-        defended_results = {item.case_id: item.verdict for item in defended.results}
-        case_ids = [item.case_id for item in baseline.results if item.case_id in defended_results]
+            raise HTTPException(
+                status_code=409,
+                detail="Run versions or targets are incompatible",
+            )
+
+        baseline_results = {
+            item.case_id: item.verdict
+            for item in baseline.results
+        }
+        defended_results = {
+            item.case_id: item.verdict
+            for item in defended.results
+        }
+
+        case_ids = [
+            item.case_id
+            for item in baseline.results
+            if item.case_id in defended_results
+        ]
+
         items = [
-            {"case_id": case_id, "baseline_verdict": baseline_results[case_id], "defended_verdict": defended_results[case_id]}
+            {
+                "case_id": case_id,
+                "baseline_verdict": baseline_results[case_id],
+                "defended_verdict": defended_results[case_id],
+            }
             for case_id in case_ids
         ]
-        baseline_asr = (
-            sum(value == "FAIL" for value in baseline_results.values()) / len(baseline_results)
-            if baseline_results else None
+
+        baseline_asr, baseline_excluded_count = calculate_asr(
+            baseline_results
         )
-        defended_asr = (
-            sum(value == "FAIL" for value in defended_results.values()) / len(defended_results)
-            if defended_results else None
+        defended_asr, defended_excluded_count = calculate_asr(
+            defended_results
         )
+
         return {
             "baseline_run_id": baseline.run_id,
             "defended_run_id": defended.run_id,
             "baseline_asr": baseline_asr,
             "defended_asr": defended_asr,
+            "baseline_excluded_count": baseline_excluded_count,
+            "defended_excluded_count": defended_excluded_count,
             "items": items,
         }
 
-
+    
 @app.get("/api/v1/runs/{run_id}/report", tags=["reports"])
 def get_run_report(run_id: str) -> dict:
     with SessionLocal() as db:
