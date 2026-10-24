@@ -82,7 +82,7 @@ A security demo is more useful when it can show the same attack before and after
 This is a **hackathon MVP / prototype**, not a production certification tool.
 
 - The demo target is synthetic and deterministic; it does not call a live LLM, external tool or third-party application.
-- The API currently evaluates runs in-process. The separate constrained runner image exists, but API dispatch to it is **not wired up**. Therefore, hosted API runs must **not** be described as sandboxed or isolated.
+- Local Docker Compose synthetic fixture runs dispatch to a separate constrained runner over an internal-only network; the API validates runner output and maps failures/timeouts to ERROR. Local subprocess fallback is development-only and is not container isolation. The hosted Render deployment has not been runtime-verified with this runner, so hosted runs must not be described as sandboxed or isolated.
 - The runner is a restricted fixture protocol, not an arbitrary-code execution engine. Docker restrictions are defense-in-depth, not a guarantee of perfect isolation.
 - The curated suite currently contains four synthetic cases. Results do not establish broad coverage or real-world model robustness.
 
