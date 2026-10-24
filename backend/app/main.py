@@ -2,7 +2,11 @@
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from datetime import datetime, timezone
+import json
 import os
+import subprocess
+import sys
+from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query
@@ -176,6 +180,46 @@ def _evaluate_case(case: dict, response: str) -> dict[str, str]:
     }
 
 
+def _run_demo_cases_via_runner(defense_mode: str) -> list[dict[str, str]]:
+    """Run the fixed synthetic suite through a subprocess; validate every returned row."""
+    case_ids = [case["case_id"] for case in BASELINE_CASES]
+    runner_path = Path(__file__).resolve().parents[1] / "runner" / "runner.py"
+    request = json.dumps({"case_ids": case_ids, "defense_mode": defense_mode})
+    try:
+        completed = subprocess.run(
+            [sys.executable, str(runner_path)], input=request, capture_output=True,
+            text=True, timeout=CASE_TIMEOUT_SECONDS, check=False,
+            env={"PATH": os.getenv("PATH", ""), "PYTHONPATH": ""},
+        )
+        if completed.returncode != 0:
+            raise RuntimeError("runner_nonzero_exit")
+        payload = json.loads(completed.stdout)
+        rows = payload.get("results")
+        if payload.get("defense_mode") != defense_mode or not isinstance(rows, list):
+            raise ValueError("runner_invalid_shape")
+        by_id = {}
+        for row in rows:
+            if not isinstance(row, dict) or set(row) != {"case_id", "response"}:
+                raise ValueError("runner_invalid_row")
+            if row["case_id"] not in case_ids or not isinstance(row["response"], str):
+                raise ValueError("runner_invalid_result")
+            if row["case_id"] in by_id:
+                raise ValueError("runner_duplicate_case")
+            by_id[row["case_id"]] = row["response"]
+        if set(by_id) != set(case_ids):
+            raise ValueError("runner_missing_case")
+        return [_evaluate_case(case, by_id[case["case_id"]]) for case in BASELINE_CASES]
+    except subprocess.TimeoutExpired:
+        return [{"case_id": case["case_id"], "category": case["category"],
+                 "verdict": "ERROR", "reason": "Runner subprocess timed out.",
+                 "response_excerpt": ""} for case in BASELINE_CASES]
+    except Exception as exc:
+        return [{"case_id": case["case_id"], "category": case["category"],
+                 "verdict": "ERROR",
+                 "reason": f"Runner orchestration failed ({type(exc).__name__}).",
+                 "response_excerpt": ""} for case in BASELINE_CASES]
+
+
 def _run_case(case: dict, defense_mode: str, target_id: str = "demo_assistant") -> dict[str, str]:
     """Execute and score one case; a crash or timeout becomes ERROR, never a security verdict.
 
@@ -247,8 +291,14 @@ def create_run(request: CreateRunRequest) -> dict:
         with SessionLocal() as db:
             db.add(run)
             db.flush()
-            for position, case in enumerate(BASELINE_CASES):
-                evaluated = _run_case(case, request.defense_mode, request.target_id)
+            if request.target_id == "demo_assistant":
+                evaluated_cases = _run_demo_cases_via_runner(request.defense_mode)
+            else:
+                evaluated_cases = [
+                    _run_case(case, request.defense_mode, request.target_id)
+                    for case in BASELINE_CASES
+                ]
+            for position, evaluated in enumerate(evaluated_cases):
                 run.results.append(CaseResultRecord(position=position, **evaluated))
             run.status = "completed"
             run.completed_at = _utc_now()
