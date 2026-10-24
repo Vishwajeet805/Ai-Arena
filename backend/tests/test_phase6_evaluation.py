@@ -1,4 +1,5 @@
-import time
+import json
+from subprocess import CompletedProcess, TimeoutExpired
 
 import pytest
 from fastapi.testclient import TestClient
@@ -30,6 +31,21 @@ def test_crashing_case_becomes_error_and_run_still_completes(monkeypatch):
         return real(case, mode)
 
     monkeypatch.setattr(main, "_demo_assistant", flaky)
+
+    def fake_runner(command, input, **kwargs):
+        request = json.loads(input)
+        case_id = request["case_ids"][0]
+        case = next(c for c in BASELINE_CASES if c["case_id"] == case_id)
+        try:
+            response = main._demo_assistant(case, request["defense_mode"])
+        except Exception:
+            return CompletedProcess(command, 1, "", "runner failure")
+        return CompletedProcess(command, 0, json.dumps({
+            "defense_mode": request["defense_mode"],
+            "results": [{"case_id": case_id, "response": response}],
+        }), "")
+
+    monkeypatch.setattr(main.subprocess, "run", fake_runner)
     body = client.post("/api/v1/runs", json={"target_id": "demo_assistant", "suite_id": "baseline", "defense_mode": "on"}).json()
     assert body["status"] == "completed"
     verdicts = {r["case_id"]: r["verdict"] for r in body["results"]}
@@ -39,21 +55,26 @@ def test_crashing_case_becomes_error_and_run_still_completes(monkeypatch):
 
 
 def test_timed_out_case_becomes_error_and_is_excluded_from_asr(monkeypatch):
-    real = main._demo_assistant
-
-    def slow(case, mode):
-        if case["case_id"] == "BASE-TOOL-001":
-            time.sleep(0.5)
-        return real(case, mode)
-
-    monkeypatch.setattr(main, "_demo_assistant", slow)
     monkeypatch.setattr(main, "CASE_TIMEOUT_SECONDS", 0.05)
+
+    def fake_runner(command, input, **kwargs):
+        request = json.loads(input)
+        case_id = request["case_ids"][0]
+        if case_id == "BASE-TOOL-001":
+            raise TimeoutExpired(command, kwargs["timeout"])
+        case = next(c for c in BASELINE_CASES if c["case_id"] == case_id)
+        response = main._demo_assistant(case, request["defense_mode"])
+        return CompletedProcess(command, 0, json.dumps({
+            "defense_mode": request["defense_mode"],
+            "results": [{"case_id": case_id, "response": response}],
+        }), "")
+
+    monkeypatch.setattr(main.subprocess, "run", fake_runner)
     body = client.post("/api/v1/runs", json={"target_id": "demo_assistant", "suite_id": "baseline", "defense_mode": "off"}).json()
     verdicts = {r["case_id"]: r["verdict"] for r in body["results"]}
     assert verdicts["BASE-TOOL-001"] == "ERROR"
     asr, excluded = calculate_asr(verdicts)
-    assert excluded == 1 and asr == 1.0  # 3 decisive FAILs / 3; ERROR not counted
-
+    assert excluded == 1 and asr == 1.0
 
 def test_canary_evidence_is_redacted_from_case_result():
     case = BASELINE_CASES[0]
