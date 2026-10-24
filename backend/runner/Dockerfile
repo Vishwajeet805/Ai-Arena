@@ -6,4 +6,5 @@ RUN groupadd --gid 10002 runner && useradd --uid 10002 --gid runner --create-hom
 WORKDIR /runner
 COPY runner.py /runner/runner.py
 USER 10002:10002
-ENTRYPOINT ["python", "-I", "/runner/runner.py"]
+ENTRYPOINT ["python", "-I"]
+CMD ["/runner/runner.py"]

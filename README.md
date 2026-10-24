@@ -82,7 +82,7 @@ A security demo is more useful when it can show the same attack before and after
 This is a **hackathon MVP / prototype**, not a production certification tool.
 
 - The demo target is synthetic and deterministic; it does not call a live LLM, external tool or third-party application.
-- The API currently evaluates runs in-process. The separate constrained runner image exists, but API dispatch to it is **not wired up**. Therefore, hosted API runs must **not** be described as sandboxed or isolated.
+- Local Docker Compose synthetic fixture runs dispatch to a separate constrained runner over an internal-only network; the API validates runner output and maps failures/timeouts to ERROR. Local subprocess fallback is development-only and is not container isolation. The hosted Render deployment has not been runtime-verified with this runner, so hosted runs must not be described as sandboxed or isolated.
 - The runner is a restricted fixture protocol, not an arbitrary-code execution engine. Docker restrictions are defense-in-depth, not a guarantee of perfect isolation.
 - The curated suite currently contains four synthetic cases. Results do not establish broad coverage or real-world model robustness.
 
@@ -161,10 +161,16 @@ npm run dev
 ```
 
 ### Optional constrained runner
-The runner is opt-in and is not launched by default:
+Docker Compose starts the restricted fixture runner alongside the API. The API dispatches synthetic fixture IDs to it over the internal-only Compose network. For an API smoke check, run `python scripts/smoke_test.py` after `docker compose up --build`.
 ```sh
-docker compose --profile runner build runner
-printf '%s' '{"case_ids":["BASE-PINJ-001"],"defense_mode":"on"}' | docker compose --profile runner run --rm -T runner
+# Inspect runner service health and logs
+docker compose ps runner
+docker compose logs --tail=50 runner
+
+# Verify API marks runner outages as ERROR: stop runner, then create a run via the API.
+docker compose stop runner
+# Restore after the check
+docker compose start runner
 ```
 Review the runner configuration and verify restrictions on your own Docker host before treating them as runtime evidence.
 
