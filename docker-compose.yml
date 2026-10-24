@@ -39,7 +39,7 @@ services:
     build:
       context: ./backend/runner
     image: ai-arena-runner:phase7c
-    command: ["python", "-I", "/runner/runner.py", "--serve"]
+    command: ["/runner/runner.py", "--serve"]
     networks:
       - runner_internal
     read_only: true
