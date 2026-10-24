@@ -5,6 +5,7 @@ strings for those fixtures. No shell, user-code execution, or external network c
 """
 import json
 import sys
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 CASES = {
     "BASE-PINJ-001": {
@@ -47,5 +48,49 @@ def main() -> int:
     return 0
 
 
+
+class RunnerHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path != "/health":
+            self.send_error(404)
+            return
+        body = b'{"status":"ok"}'
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_POST(self):
+        if self.path != "/run":
+            self.send_error(404)
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if length < 1 or length > 4096:
+                self.send_error(413)
+                return
+            request = json.loads(self.rfile.read(length))
+            ids, mode = request.get("case_ids"), request.get("defense_mode")
+            if set(request) != {"case_ids", "defense_mode"} or not isinstance(ids, list) or not ids or not all(isinstance(i, str) and i in CASES for i in ids) or mode not in {"on", "off"}:
+                self.send_error(400)
+                return
+            payload = {"results": [{"case_id": i, "response": CASES[i]["safe" if mode == "on" else "unsafe"]} for i in ids], "defense_mode": mode}
+            body = json.dumps(payload).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except Exception:
+            self.send_error(400)
+
+    def log_message(self, fmt, *args):
+        return
+
+
 if __name__ == "__main__":
+    if sys.argv[1:] == ["--serve"]:
+        HTTPServer(("0.0.0.0", 8081), RunnerHandler).serve_forever()
     raise SystemExit(main())
+
