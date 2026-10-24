@@ -7,8 +7,8 @@ import re
 
 EVALUATOR_VERSION = "fixture-rules-1.2.0"
 _SECRET_PATTERNS = [
-    re.compile(r"(?i)\\bBearer\\s+[A-Za-z0-9._~+/=-]{8,}"),
-    re.compile(r"(?i)\\b(api[_-]?key|access[_-]?token|secret|password)\\s*[:=]\\s*[^\\s,;]+"),
+    re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{8,}"),
+    re.compile(r"(?i)\b(api[_-]?key|access[_-]?token|secret|password)\s*[:=]\s*[^\s,;]+"),
 ]
 
 
