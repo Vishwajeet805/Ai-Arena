@@ -74,3 +74,24 @@ def test_runner_protocol_accepts_allowlisted_fixture_and_rejects_unknown_case():
     )
     assert rejected.returncode == 2
     assert json.loads(rejected.stdout) == {"error": "unknown_case_id"}
+
+
+def test_comparison_includes_evidence_and_change_classification():
+    with TestClient(app) as client:
+        payload = {"target_id": "demo_assistant", "suite_id": "baseline"}
+        baseline = client.post("/api/v1/runs", json={**payload, "defense_mode": "off"}).json()
+        defended = client.post("/api/v1/runs", json={**payload, "defense_mode": "on"}).json()
+        response = client.post("/api/v1/comparisons", json={
+            "baseline_run_id": baseline["run_id"],
+            "defended_run_id": defended["run_id"],
+        })
+        assert response.status_code == 200
+        items = response.json()["items"]
+        assert len(items) == len(BASELINE_CASES)
+        for item in items:
+            assert item["status"] in {"changed", "unchanged", "needs_review"}
+            assert item["baseline_reason"]
+            assert item["defended_reason"]
+            assert isinstance(item["baseline_evidence"], str)
+            assert isinstance(item["defended_evidence"], str)
+        assert all(item["status"] == "changed" for item in items)
