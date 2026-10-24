@@ -2,7 +2,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.fixtures.baseline import BASELINE_CASES
+from app.evaluation import EVALUATOR_VERSION
+from app.fixtures.baseline import BASELINE_CASES, BASELINE_SUITE_VERSION
 
 
 @pytest.fixture
@@ -21,9 +22,12 @@ def test_create_run_persists_all_case_results_and_contract_shape(client):
     assert run["status"] == "completed"
     assert run["target_id"] == "demo_assistant"
     assert run["suite_id"] == "baseline"
-    assert run["suite_version"] == "1.0.0"
+    assert run["suite_version"] == BASELINE_SUITE_VERSION
     assert run["defense_mode"] == "off"
-    assert run["evaluator_version"] == "deterministic-rules-1.0.0"
+    assert run["evaluator_version"] == EVALUATOR_VERSION
+    assert run["evaluator_type"] == "fixture-scoped deterministic rules"
+    assert run["evaluation_source"] == "synthetic_demo_output"
+    assert all("severity" in item and "severity_rationale" in item for item in run["results"])
     assert run["created_at"].endswith("Z")
     assert run["completed_at"].endswith("Z")
     assert len(run["results"]) == len(BASELINE_CASES)
@@ -88,3 +92,10 @@ def test_missing_comparison_runs_return_404(client):
 def test_health_and_suites_remain_available(client):
     assert client.get("/api/v1/health").json() == {"status": "ok"}
     assert client.get("/api/v1/suites").status_code == 200
+
+
+def test_suite_contract_identifies_real_and_synthetic_evaluation_sources(client):
+    body = client.get("/api/v1/suites/baseline/cases").json()
+    assert body["evaluator_version"] == EVALUATOR_VERSION
+    assert body["evaluation_source_modes"]["demo_assistant"] == "synthetic_demo_output"
+    assert body["evaluation_source_modes"]["openai_compatible"] == "configured_target_observed_response"

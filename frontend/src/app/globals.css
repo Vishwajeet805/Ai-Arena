@@ -549,3 +549,8 @@ blockquote {
   .section-heading { align-items: flex-start; }
   .brand-name { letter-spacing: 1px; }
 }
+
+.button-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.run-summary { margin: 12px 0; }
+.totals-list { display: flex; gap: 16px; flex-wrap: wrap; list-style: none; padding: 0; margin: 0 0 8px; }
+.totals-list li { display: flex; align-items: center; gap: 6px; }

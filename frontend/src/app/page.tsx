@@ -14,6 +14,8 @@ type CaseResult = {
   verdict: Verdict;
   reason: string;
   response_excerpt: string;
+  severity?: string;
+  severity_rationale?: string;
 };
 type RunResult = {
   run_id: string;
@@ -26,6 +28,8 @@ type RunResult = {
   created_at: string;
   completed_at: string | null;
   evaluator_version: string;
+  evaluator_type?: string;
+  evaluation_source?: string;
   results: CaseResult[];
 };
 type RunList = { items: RunResult[] };
@@ -33,6 +37,11 @@ type ComparisonItem = {
   case_id: string;
   baseline_verdict: Verdict;
   defended_verdict: Verdict;
+  status: "changed" | "unchanged" | "needs_review";
+  baseline_reason: string;
+  defended_reason: string;
+  baseline_evidence: string;
+  defended_evidence: string;
 };
 type Comparison = {
   baseline_run_id: string;
@@ -66,8 +75,51 @@ function formatAsr(value: number | null): string {
   return value === null ? "N/A" : `${(value * 100).toFixed(1)}%`;
 }
 
+const VERDICTS: Verdict[] = ["PASS", "FAIL", "NEEDS_REVIEW", "ERROR"];
+
+function summarize(results: CaseResult[]) {
+  const totals: Record<Verdict, number> = { PASS: 0, FAIL: 0, NEEDS_REVIEW: 0, ERROR: 0 };
+  const failuresByCategory: Record<string, number> = {};
+  for (const item of results) {
+    totals[item.verdict] += 1;
+    if (item.verdict === "FAIL") failuresByCategory[item.category] = (failuresByCategory[item.category] ?? 0) + 1;
+  }
+  return { totals, failuresByCategory };
+}
+
+function csvCell(value: string): string {
+  // Quote every cell; neutralise spreadsheet formula injection from stored model output.
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return `"${safe.replace(/"/g, '""')}"`;
+}
+
+function runToCsv(run: RunResult): string {
+  const header = ["run_id", "defense_mode", "suite_version", "evaluator_version", "case_id", "category", "verdict", "reason", "response_excerpt"];
+  const rows = run.results.map((r) => [run.run_id, run.defense_mode, run.suite_version, run.evaluator_version, r.case_id, r.category, r.verdict, r.reason, r.response_excerpt]);
+  return [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
+}
+
 function verdictClass(verdict: Verdict): string {
   return `verdict verdict-${verdict.toLowerCase()}`;
+}
+
+function RunSummary({ results }: { results: CaseResult[] }) {
+  const { totals, failuresByCategory } = summarize(results);
+  const categories = Object.entries(failuresByCategory);
+  return (
+    <div className="run-summary" aria-label="Run totals">
+      <ul className="totals-list">
+        <li><strong>{results.length}</strong> cases</li>
+        {VERDICTS.map((v) => <li key={v}><span className={verdictClass(v)}>{v}</span> <strong>{totals[v]}</strong></li>)}
+      </ul>
+      <p className="muted-copy">
+        {categories.length === 0
+          ? "No FAIL verdicts, so no failures by category."
+          : `Failures by category: ${categories.map(([c, n]) => `${c} (${n})`).join(", ")}.`}
+        {" "}NEEDS_REVIEW and ERROR are shown separately and excluded from ASR.
+      </p>
+    </div>
+  );
 }
 
 export default function Home() {
@@ -199,6 +251,18 @@ export default function Home() {
     }
   }
 
+  async function exportRunCsv(run: RunResult) {
+    setError("");
+    setExportNotice("");
+    try {
+      const report = await api<RunResult>(`/api/v1/runs/${encodeURIComponent(run.run_id)}/report`);
+      downloadBlob(runToCsv(report), "text/csv", `ai-arena-run-${run.run_id.slice(0, 8)}.csv`);
+      setExportNotice("Run report CSV exported from the API response.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "CSV export failed");
+    }
+  }
+
   function exportComparison() {
     if (!comparison) return;
     downloadJson(comparison, `ai-arena-comparison-${comparison.baseline_run_id.slice(0, 8)}.json`);
@@ -206,7 +270,11 @@ export default function Home() {
   }
 
   function downloadJson(value: unknown, filename: string) {
-    const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
+    downloadBlob(JSON.stringify(value, null, 2), "application/json", filename);
+  }
+
+  function downloadBlob(content: string, type: string, filename: string) {
+    const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -240,7 +308,7 @@ export default function Home() {
           <p className="intro">Run the curated synthetic security suite against the demo assistant, inspect case evidence, and compare baseline with defenses enabled.</p>
           <div className="notice" role="note">
             <strong>Prototype safety note</strong>
-            <p>This MVP uses a deterministic synthetic assistant. Runs execute in-process, are not sandboxed, and do not test a real external model.</p>
+            <p>The synthetic assistant is a deterministic demo. A configured OpenAI-compatible endpoint can be tested, but runs execute in-process and are not sandboxed; use only authorized test targets and synthetic fixtures.</p>
           </div>
         </section>
 
@@ -252,9 +320,9 @@ export default function Home() {
           <div className="form-grid">
             <label htmlFor="target-select">Demo target
               <select id="target-select" value={targetId} onChange={(event) => setTargetId(event.target.value)} disabled={busy || apiStatus !== "connected"}>
-                <option value="demo_assistant">Synthetic demo assistant</option>
+                <option value="demo_assistant">Synthetic demo assistant</option><option value="openai_compatible">Configured OpenAI-compatible model</option>
               </select>
-              <small>The API currently supports only demo_assistant.</small>
+              <small>Real-model option requires backend-only ARENA_LLM_* settings; provider credentials never belong in the browser.</small>
             </label>
             <label htmlFor="suite-select">Test suite
               <select id="suite-select" value={suiteId} onChange={(event) => setSuiteId(event.target.value)} disabled={busy || apiStatus !== "connected" || suites.length === 0}>
@@ -293,16 +361,17 @@ export default function Home() {
             <div><strong>Defended attack success rate</strong><p className="metric-value">{formatAsr(comparison.defended_asr)}</p><small>Excluded verdicts: {comparison.defended_excluded_count}</small></div>
           </div>
           <p className="muted-copy">ASR is computed by the API from decisive PASS/FAIL outcomes only. N/A means no decisive outcomes were available.</p>
-          <div className="table-scroll"><table><caption>Verdicts aligned by exact case ID returned by the API</caption><thead><tr><th scope="col">Case ID</th><th scope="col">Baseline verdict</th><th scope="col">Defended verdict</th></tr></thead><tbody>{comparison.items.map((item) => <tr key={item.case_id}><th scope="row">{item.case_id}</th><td><span className={verdictClass(item.baseline_verdict)}>{item.baseline_verdict}</span></td><td><span className={verdictClass(item.defended_verdict)}>{item.defended_verdict}</span></td></tr>)}</tbody></table></div>
+          <div className="table-scroll"><table><caption>Verdicts, outcome status, and evidence aligned by exact case ID</caption><thead><tr><th scope="col">Case ID</th><th scope="col">Baseline</th><th scope="col">Defended</th><th scope="col">Change</th><th scope="col">Evidence / evaluator notes</th></tr></thead><tbody>{comparison.items.map((item) => <tr key={item.case_id}><th scope="row">{item.case_id}</th><td><span className={verdictClass(item.baseline_verdict)}>{item.baseline_verdict}</span><small>{item.baseline_reason}<br />Evidence: {item.baseline_evidence || "—"}</small></td><td><span className={verdictClass(item.defended_verdict)}>{item.defended_verdict}</span><small>{item.defended_reason}<br />Evidence: {item.defended_evidence || "—"}</small></td><td>{item.status}</td><td>{item.status === "needs_review" ? "At least one outcome is indeterminate/technical error; review manually." : item.status === "changed" ? "Verdict changed between runs." : "Verdict unchanged between runs."}</td></tr>)}</tbody></table></div>
         </section>}
 
         <section className="card results" aria-labelledby="evidence-title">
           <div className="section-heading"><div><h2 id="evidence-title">Case-level evidence</h2><p className="muted-copy">Verdicts, categories, evaluator reasons, and response excerpts from API run results.</p></div></div>
           {!latestRun && <p className="empty-state">No run evidence yet. Configure a run above and select <strong>Start run</strong>.</p>}
           {latestRun && <div className="evidence-run">
-            <div className="evidence-run-header"><div><h3>{latestRun.defense_mode === "off" ? "Baseline" : "Defended"} result</h3><small>Run ID: {latestRun.run_id}</small></div><button className="button-secondary" onClick={() => void exportRunReport(latestRun)}>Export run report JSON</button></div>
-            <p className="muted-copy">Status: {latestRun.status} · target {latestRun.target_id} v{latestRun.target_version} · suite {latestRun.suite_id} v{latestRun.suite_version} · evaluator {latestRun.evaluator_version}</p>
-            {latestRun.results.map((item) => <details className="evidence-item" key={item.case_id}><summary><span>{item.case_id}</span><span className="category-tag">{item.category}</span><span className={verdictClass(item.verdict)}>{item.verdict}</span></summary><div className="evidence-body"><p><strong>Evaluator reason</strong>{item.reason}</p><p><strong>Response evidence</strong></p><blockquote>{item.response_excerpt || "(Empty response excerpt returned by API.)"}</blockquote></div></details>)}
+            <div className="evidence-run-header"><div><h3>{latestRun.defense_mode === "off" ? "Baseline" : "Defended"} result</h3><small>Run ID: {latestRun.run_id}</small></div><div className="button-row"><button className="button-secondary" onClick={() => void exportRunReport(latestRun)}>Export run report JSON</button><button className="button-secondary" onClick={() => void exportRunCsv(latestRun)}>Export run report CSV</button></div></div>
+            <p className="muted-copy">Status: {latestRun.status} · target {latestRun.target_id} v{latestRun.target_version} · suite {latestRun.suite_id} v{latestRun.suite_version} · evaluator {latestRun.evaluator_version} ({latestRun.evaluation_source ?? "source not reported"})</p>
+            <RunSummary results={latestRun.results} />
+            {latestRun.results.map((item) => <details className="evidence-item" key={item.case_id}><summary><span>{item.case_id}</span><span className="category-tag">{item.category}</span><span className={verdictClass(item.verdict)}>{item.verdict}</span></summary><div className="evidence-body"><p><strong>Evaluator reason</strong>{item.reason}</p>{item.severity && <p><strong>Severity</strong> {item.severity}{item.severity_rationale ? ` — ${item.severity_rationale}` : ""}</p>}<p><strong>Response evidence</strong></p><blockquote>{item.response_excerpt || "(Empty response excerpt returned by API.)"}</blockquote></div></details>)}
           </div>}
         </section>
 

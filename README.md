@@ -40,7 +40,7 @@ It is designed to make security checks **repeatable, inspectable, and easier to 
 3. Run once with **Defense mode: Off**.
 4. Run again with **Defense mode: On**.
 5. Compare the baseline and defended runs; inspect case verdicts and run history.
-6. Export the comparison or run report as JSON.
+6. Export the comparison or run report as JSON (run report also as CSV).
 
 The hosted flow has been manually smoke-tested for suite loading, baseline/defended runs, history, comparison and JSON export. Render's free service may need a short wake-up period after inactivity.
 
@@ -63,6 +63,7 @@ Each run records its target, suite, defense mode, evaluator version, status and 
 - **PASS / FAIL:** decisive outcomes used by the current Attack Success Rate calculation.
 - **NEEDS_REVIEW / ERROR:** excluded from the decisive ASR denominator and surfaced separately, rather than silently counted as success or failure.
 - **Case evidence:** category, verdict, reason and response excerpt are shown for review.
+- **Per-case failure handling:** a case that crashes or exceeds `CASE_TIMEOUT_SECONDS` (default 10) is recorded as `ERROR`; this wait timeout is not hard cancellation of in-process target calls.
 
 The evaluator is deterministic rule-based demo logic. These results demonstrate the workflow and data model; they are **not** a claim of measured security against real LLMs.
 
@@ -114,6 +115,7 @@ Interactive schema: [Swagger UI](https://ai-arena-pa82.onrender.com/docs)
 |---|---|---|
 | GET | `/api/v1/health` | Health check |
 | GET | `/api/v1/suites` | List available suites |
+| GET | `/api/v1/suites/{suite_id}/cases` | Review case prompts, expected behavior, severity rationale, evaluation rules and evaluator metadata (synthetic canary values omitted) |
 | POST | `/api/v1/runs` | Execute a demo evaluation |
 | GET | `/api/v1/runs?limit=20` | Browse persisted run history |
 | GET | `/api/v1/runs/{run_id}` | Retrieve a run |
@@ -135,6 +137,11 @@ docker compose up --build
 Then open the dashboard at `http://localhost:3000`, API health at `http://localhost:8000/api/v1/health`, and API docs at `http://localhost:8000/docs`.
 
 Stop with `docker compose down`. Use `docker compose down -v` only when you intend to delete the local database volume.
+
+### Smoke test (API running on :8000)
+```bash
+python scripts/smoke_test.py
+```
 
 ### Backend development
 ```powershell
