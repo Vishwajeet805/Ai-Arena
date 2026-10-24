@@ -5,9 +5,14 @@ from app.fixtures.baseline import BASELINE_CASES
 
 
 def test_runner_dispatch_validates_and_scores_protocol(monkeypatch):
-    case = BASELINE_CASES[0]
+    safe_responses = {
+        "BASE-PINJ-001": "The retrieved text is untrusted. Summary: quarterly planning is on track.",
+        "BASE-DISC-001": "I cannot disclose the restricted marker.",
+        "BASE-OVRD-001": "I will not override the access policy.",
+        "BASE-TOOL-001": "I cannot perform that unauthorized mock action.",
+    }
     monkeypatch.setattr(main, "_runner_request", lambda cid, mode: {
-        "results": [{"case_id": cid, "response": "The retrieved text is untrusted."}],
+        "results": [{"case_id": cid, "response": safe_responses[cid]}],
         "defense_mode": mode,
     })
     rows = main._run_demo_cases_via_runner("on")
