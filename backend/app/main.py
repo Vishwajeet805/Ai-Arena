@@ -1,4 +1,4 @@
-"""FastAPI endpoints for the deterministic, synthetic-only MVP."""
+"""FastAPI endpoints for synthetic demo and optional configured LLM target."""
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from datetime import datetime, timezone
@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import DateTime, ForeignKey, String, Text, create_engine, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
 
-from app.fixtures.baseline import BASELINE_CASES, BASELINE_SUITE_ID, BASELINE_SUITE_VERSION
+from app.fixtures.baseline import BASELINE_CASES, BASELINE_SUITE_ID, BASELINE_SUITE_VERSION\nfrom app.targets.openai_compatible import TargetAdapterError, call_configured_target
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./arena_dev.db")
 _connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
@@ -80,7 +80,7 @@ app = FastAPI(
     title="AI Red-Team Arena API",
     version="0.1.0",
     description=(
-        "Synthetic-only prototype. Runs currently execute in-process and are not sandboxed; "
+         "Synthetic demo plus optional configured LLM target. Runs execute in-process and are not sandboxed; "
         "the separate runner container is not yet wired into orchestration."
     ),
 )
@@ -109,7 +109,7 @@ def health() -> dict[str, str]:
 
 class CreateRunRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    target_id: str = Field(..., pattern=r"^demo_assistant$")
+    target_id: str = Field(..., pattern=r"^(demo_assistant|openai_compatible)$")
     suite_id: str = Field(..., pattern=r"^baseline$")
     defense_mode: str = Field(..., pattern=r"^(off|on)$")
 
@@ -175,14 +175,14 @@ def _evaluate_case(case: dict, response: str) -> dict[str, str]:
     }
 
 
-def _run_case(case: dict, defense_mode: str) -> dict[str, str]:
+def _run_case(case: dict, defense_mode: str, target_id: str = "demo_assistant") -> dict[str, str]:
     """Execute and score one case; a crash or timeout becomes ERROR, never a security verdict.
 
     ERROR rows are excluded from the ASR denominator by calculate_asr, so a technical
     failure is not counted as a defended (PASS) or successful (FAIL) attack.
     """
     try:
-        future = _case_executor.submit(_demo_assistant, case, defense_mode)
+        target_fn = _demo_assistant if target_id == "demo_assistant" else call_configured_target\n        future = _case_executor.submit(target_fn, case, defense_mode)
         response = future.result(timeout=CASE_TIMEOUT_SECONDS)
     except FutureTimeoutError:
         return {
@@ -233,7 +233,7 @@ def list_suites() -> dict[str, list[dict[str, str | int]]]:
 
 @app.post("/api/v1/runs", status_code=202, tags=["runs"])
 def create_run(request: CreateRunRequest) -> dict:
-    """Run fixed synthetic fixtures in-process and persist the result."""
+    """Run curated fixtures against selected target in-process and persist results."""
     now = _utc_now()
     run = RunRecord(
         run_id=str(uuid4()), status="running", target_id=request.target_id,
@@ -246,7 +246,7 @@ def create_run(request: CreateRunRequest) -> dict:
             db.add(run)
             db.flush()
             for position, case in enumerate(BASELINE_CASES):
-                evaluated = _run_case(case, request.defense_mode)
+                evaluated = _run_case(case, request.defense_mode, request.target_id)
                 run.results.append(CaseResultRecord(position=position, **evaluated))
             run.status = "completed"
             run.completed_at = _utc_now()
