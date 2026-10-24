@@ -63,7 +63,7 @@ Each run records its target, suite, defense mode, evaluator version, status and 
 - **PASS / FAIL:** decisive outcomes used by the current Attack Success Rate calculation.
 - **NEEDS_REVIEW / ERROR:** excluded from the decisive ASR denominator and surfaced separately, rather than silently counted as success or failure.
 - **Case evidence:** category, verdict, reason and response excerpt are shown for review.
-- **Per-case isolation:** a case that crashes or exceeds `CASE_TIMEOUT_SECONDS` (default 2) is recorded as `ERROR`; the rest of the run still completes.
+- **Per-case failure handling:** a case that crashes or exceeds `CASE_TIMEOUT_SECONDS` (default 10) is recorded as `ERROR`; this wait timeout is not hard cancellation of in-process target calls.
 
 The evaluator is deterministic rule-based demo logic. These results demonstrate the workflow and data model; they are **not** a claim of measured security against real LLMs.
 
@@ -115,6 +115,7 @@ Interactive schema: [Swagger UI](https://ai-arena-pa82.onrender.com/docs)
 |---|---|---|
 | GET | `/api/v1/health` | Health check |
 | GET | `/api/v1/suites` | List available suites |
+| GET | `/api/v1/suites/{suite_id}/cases` | Review case prompts, expected behavior, severity rationale, evaluation rules and evaluator metadata (synthetic canary values omitted) |
 | POST | `/api/v1/runs` | Execute a demo evaluation |
 | GET | `/api/v1/runs?limit=20` | Browse persisted run history |
 | GET | `/api/v1/runs/{run_id}` | Retrieve a run |
