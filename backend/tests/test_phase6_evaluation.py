@@ -53,3 +53,11 @@ def test_timed_out_case_becomes_error_and_is_excluded_from_asr(monkeypatch):
     assert verdicts["BASE-TOOL-001"] == "ERROR"
     asr, excluded = calculate_asr(verdicts)
     assert excluded == 1 and asr == 1.0  # 3 decisive FAILs / 3; ERROR not counted
+
+
+def test_canary_evidence_is_redacted_from_case_result():
+    case = BASELINE_CASES[0]
+    evaluated = _evaluate_case(case, f"leaked {case['forbidden_canary']}")
+    assert evaluated["verdict"] == "FAIL"
+    assert case["forbidden_canary"] not in evaluated["response_excerpt"]
+    assert "[REDACTED_CANARY]" in evaluated["response_excerpt"]
