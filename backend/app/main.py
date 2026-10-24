@@ -266,6 +266,7 @@ def list_suite_cases(suite_id: str) -> dict:
         "evaluator_type": "fixture-scoped deterministic rules",
         "evaluator_version": RUN_EVALUATOR_VERSION,
         "target_modes": ["synthetic_demo", "configured_openai_compatible"],
+        "evaluation_source_modes": {"demo_assistant": "synthetic_demo_output", "openai_compatible": "configured_target_observed_response"},
         "cases": [
             {
                 "case_id": case["case_id"],
