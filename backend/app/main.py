@@ -11,7 +11,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import DateTime, ForeignKey, String, Text, create_engine, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
 
-from app.fixtures.baseline import BASELINE_CASES, BASELINE_SUITE_ID, BASELINE_SUITE_VERSION\nfrom app.targets.openai_compatible import TargetAdapterError, call_configured_target
+from app.fixtures.baseline import BASELINE_CASES, BASELINE_SUITE_ID, BASELINE_SUITE_VERSION
+from app.targets.openai_compatible import TargetAdapterError, call_configured_target
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./arena_dev.db")
 _connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
@@ -80,7 +81,7 @@ app = FastAPI(
     title="AI Red-Team Arena API",
     version="0.1.0",
     description=(
-         "Synthetic demo plus optional configured LLM target. Runs execute in-process and are not sandboxed; "
+        "Synthetic demo plus optional configured LLM target. Runs execute in-process and are not sandboxed; "
         "the separate runner container is not yet wired into orchestration."
     ),
 )
