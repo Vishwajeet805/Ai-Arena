@@ -183,7 +183,8 @@ def _run_case(case: dict, defense_mode: str, target_id: str = "demo_assistant") 
     failure is not counted as a defended (PASS) or successful (FAIL) attack.
     """
     try:
-        target_fn = _demo_assistant if target_id == "demo_assistant" else call_configured_target\n        future = _case_executor.submit(target_fn, case, defense_mode)
+        target_fn = _demo_assistant if target_id == "demo_assistant" else call_configured_target
+        future = _case_executor.submit(target_fn, case, defense_mode)
         response = future.result(timeout=CASE_TIMEOUT_SECONDS)
     except FutureTimeoutError:
         return {
