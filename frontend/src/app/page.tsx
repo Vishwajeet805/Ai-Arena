@@ -66,8 +66,51 @@ function formatAsr(value: number | null): string {
   return value === null ? "N/A" : `${(value * 100).toFixed(1)}%`;
 }
 
+const VERDICTS: Verdict[] = ["PASS", "FAIL", "NEEDS_REVIEW", "ERROR"];
+
+function summarize(results: CaseResult[]) {
+  const totals: Record<Verdict, number> = { PASS: 0, FAIL: 0, NEEDS_REVIEW: 0, ERROR: 0 };
+  const failuresByCategory: Record<string, number> = {};
+  for (const item of results) {
+    totals[item.verdict] += 1;
+    if (item.verdict === "FAIL") failuresByCategory[item.category] = (failuresByCategory[item.category] ?? 0) + 1;
+  }
+  return { totals, failuresByCategory };
+}
+
+function csvCell(value: string): string {
+  // Quote every cell; neutralise spreadsheet formula injection from stored model output.
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return `"${safe.replace(/"/g, '""')}"`;
+}
+
+function runToCsv(run: RunResult): string {
+  const header = ["run_id", "defense_mode", "suite_version", "evaluator_version", "case_id", "category", "verdict", "reason", "response_excerpt"];
+  const rows = run.results.map((r) => [run.run_id, run.defense_mode, run.suite_version, run.evaluator_version, r.case_id, r.category, r.verdict, r.reason, r.response_excerpt]);
+  return [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
+}
+
 function verdictClass(verdict: Verdict): string {
   return `verdict verdict-${verdict.toLowerCase()}`;
+}
+
+function RunSummary({ results }: { results: CaseResult[] }) {
+  const { totals, failuresByCategory } = summarize(results);
+  const categories = Object.entries(failuresByCategory);
+  return (
+    <div className="run-summary" aria-label="Run totals">
+      <ul className="totals-list">
+        <li><strong>{results.length}</strong> cases</li>
+        {VERDICTS.map((v) => <li key={v}><span className={verdictClass(v)}>{v}</span> <strong>{totals[v]}</strong></li>)}
+      </ul>
+      <p className="muted-copy">
+        {categories.length === 0
+          ? "No FAIL verdicts, so no failures by category."
+          : `Failures by category: ${categories.map(([c, n]) => `${c} (${n})`).join(", ")}.`}
+        {" "}NEEDS_REVIEW and ERROR are shown separately and excluded from ASR.
+      </p>
+    </div>
+  );
 }
 
 export default function Home() {
@@ -199,6 +242,18 @@ export default function Home() {
     }
   }
 
+  async function exportRunCsv(run: RunResult) {
+    setError("");
+    setExportNotice("");
+    try {
+      const report = await api<RunResult>(`/api/v1/runs/${encodeURIComponent(run.run_id)}/report`);
+      downloadBlob(runToCsv(report), "text/csv", `ai-arena-run-${run.run_id.slice(0, 8)}.csv`);
+      setExportNotice("Run report CSV exported from the API response.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "CSV export failed");
+    }
+  }
+
   function exportComparison() {
     if (!comparison) return;
     downloadJson(comparison, `ai-arena-comparison-${comparison.baseline_run_id.slice(0, 8)}.json`);
@@ -206,7 +261,11 @@ export default function Home() {
   }
 
   function downloadJson(value: unknown, filename: string) {
-    const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
+    downloadBlob(JSON.stringify(value, null, 2), "application/json", filename);
+  }
+
+  function downloadBlob(content: string, type: string, filename: string) {
+    const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -300,8 +359,9 @@ export default function Home() {
           <div className="section-heading"><div><h2 id="evidence-title">Case-level evidence</h2><p className="muted-copy">Verdicts, categories, evaluator reasons, and response excerpts from API run results.</p></div></div>
           {!latestRun && <p className="empty-state">No run evidence yet. Configure a run above and select <strong>Start run</strong>.</p>}
           {latestRun && <div className="evidence-run">
-            <div className="evidence-run-header"><div><h3>{latestRun.defense_mode === "off" ? "Baseline" : "Defended"} result</h3><small>Run ID: {latestRun.run_id}</small></div><button className="button-secondary" onClick={() => void exportRunReport(latestRun)}>Export run report JSON</button></div>
+            <div className="evidence-run-header"><div><h3>{latestRun.defense_mode === "off" ? "Baseline" : "Defended"} result</h3><small>Run ID: {latestRun.run_id}</small></div><div className="button-row"><button className="button-secondary" onClick={() => void exportRunReport(latestRun)}>Export run report JSON</button><button className="button-secondary" onClick={() => void exportRunCsv(latestRun)}>Export run report CSV</button></div></div>
             <p className="muted-copy">Status: {latestRun.status} · target {latestRun.target_id} v{latestRun.target_version} · suite {latestRun.suite_id} v{latestRun.suite_version} · evaluator {latestRun.evaluator_version}</p>
+            <RunSummary results={latestRun.results} />
             {latestRun.results.map((item) => <details className="evidence-item" key={item.case_id}><summary><span>{item.case_id}</span><span className="category-tag">{item.category}</span><span className={verdictClass(item.verdict)}>{item.verdict}</span></summary><div className="evidence-body"><p><strong>Evaluator reason</strong>{item.reason}</p><p><strong>Response evidence</strong></p><blockquote>{item.response_excerpt || "(Empty response excerpt returned by API.)"}</blockquote></div></details>)}
           </div>}
         </section>
