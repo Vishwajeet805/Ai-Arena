@@ -181,44 +181,43 @@ def _evaluate_case(case: dict, response: str) -> dict[str, str]:
 
 
 def _run_demo_cases_via_runner(defense_mode: str) -> list[dict[str, str]]:
-    """Run the fixed synthetic suite through a subprocess; validate every returned row."""
-    case_ids = [case["case_id"] for case in BASELINE_CASES]
+    """Execute each fixed fixture in its own bounded runner subprocess."""
     runner_path = Path(__file__).resolve().parents[1] / "runner" / "runner.py"
-    request = json.dumps({"case_ids": case_ids, "defense_mode": defense_mode})
-    try:
-        completed = subprocess.run(
-            [sys.executable, str(runner_path)], input=request, capture_output=True,
-            text=True, timeout=CASE_TIMEOUT_SECONDS, check=False,
-            env={"PATH": os.getenv("PATH", ""), "PYTHONPATH": ""},
-        )
-        if completed.returncode != 0:
-            raise RuntimeError("runner_nonzero_exit")
-        payload = json.loads(completed.stdout)
-        rows = payload.get("results")
-        if payload.get("defense_mode") != defense_mode or not isinstance(rows, list):
-            raise ValueError("runner_invalid_shape")
-        by_id = {}
-        for row in rows:
+    evaluated = []
+    for case in BASELINE_CASES:
+        case_id = case["case_id"]
+        request = json.dumps({"case_ids": [case_id], "defense_mode": defense_mode})
+        try:
+            completed = subprocess.run(
+                [sys.executable, str(runner_path)], input=request, capture_output=True,
+                text=True, timeout=CASE_TIMEOUT_SECONDS, check=False,
+                env={"PATH": os.getenv("PATH", ""), "PYTHONPATH": ""},
+            )
+            if completed.returncode != 0:
+                raise RuntimeError("runner_nonzero_exit")
+            payload = json.loads(completed.stdout)
+            rows = payload.get("results")
+            if payload.get("defense_mode") != defense_mode or not isinstance(rows, list) or len(rows) != 1:
+                raise ValueError("runner_invalid_shape")
+            row = rows[0]
             if not isinstance(row, dict) or set(row) != {"case_id", "response"}:
                 raise ValueError("runner_invalid_row")
-            if row["case_id"] not in case_ids or not isinstance(row["response"], str):
+            if row["case_id"] != case_id or not isinstance(row["response"], str):
                 raise ValueError("runner_invalid_result")
-            if row["case_id"] in by_id:
-                raise ValueError("runner_duplicate_case")
-            by_id[row["case_id"]] = row["response"]
-        if set(by_id) != set(case_ids):
-            raise ValueError("runner_missing_case")
-        return [_evaluate_case(case, by_id[case["case_id"]]) for case in BASELINE_CASES]
-    except subprocess.TimeoutExpired:
-        return [{"case_id": case["case_id"], "category": case["category"],
-                 "verdict": "ERROR", "reason": "Runner subprocess timed out.",
-                 "response_excerpt": ""} for case in BASELINE_CASES]
-    except Exception as exc:
-        return [{"case_id": case["case_id"], "category": case["category"],
-                 "verdict": "ERROR",
-                 "reason": f"Runner orchestration failed ({type(exc).__name__}).",
-                 "response_excerpt": ""} for case in BASELINE_CASES]
-
+            evaluated.append(_evaluate_case(case, row["response"]))
+        except subprocess.TimeoutExpired:
+            evaluated.append({
+                "case_id": case_id, "category": case["category"], "verdict": "ERROR",
+                "reason": f"Runner subprocess exceeded the {CASE_TIMEOUT_SECONDS:g}s timeout.",
+                "response_excerpt": "",
+            })
+        except Exception as exc:
+            evaluated.append({
+                "case_id": case_id, "category": case["category"], "verdict": "ERROR",
+                "reason": f"Runner orchestration failed ({type(exc).__name__}).",
+                "response_excerpt": "",
+            })
+    return evaluated
 
 def _run_case(case: dict, defense_mode: str, target_id: str = "demo_assistant") -> dict[str, str]:
     """Execute and score one case; a crash or timeout becomes ERROR, never a security verdict.
