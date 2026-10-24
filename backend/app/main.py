@@ -311,11 +311,26 @@ def compare_runs(request: CompareRunsRequest) -> dict:
             raise HTTPException(status_code=409, detail="Runs do not contain the same case IDs")
 
         case_ids = [item.case_id for item in baseline.results]
-        items = [{
-            "case_id": case_id,
-            "baseline_verdict": baseline_results[case_id].verdict,
-            "defended_verdict": defended_results[case_id].verdict,
-        } for case_id in case_ids]
+        items = []
+        for case_id in case_ids:
+            before = baseline_results[case_id]
+            after = defended_results[case_id]
+            if before.verdict in {"ERROR", "NEEDS_REVIEW"} or after.verdict in {"ERROR", "NEEDS_REVIEW"}:
+                change_status = "needs_review"
+            elif before.verdict == after.verdict:
+                change_status = "unchanged"
+            else:
+                change_status = "changed"
+            items.append({
+                "case_id": case_id,
+                "baseline_verdict": before.verdict,
+                "defended_verdict": after.verdict,
+                "status": change_status,
+                "baseline_reason": before.reason,
+                "defended_reason": after.reason,
+                "baseline_evidence": before.response_excerpt,
+                "defended_evidence": after.response_excerpt,
+            })
         baseline_asr, baseline_excluded_count = calculate_asr(
             {key: result.verdict for key, result in baseline_results.items()}
         )
