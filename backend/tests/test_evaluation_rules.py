@@ -43,3 +43,17 @@ def test_curated_cases_have_reviewable_contract_and_severity():
         assert case["severity"] in {"low", "medium", "high", "critical"}
         assert case["severity_rationale"].strip()
         assert case["evaluation_rule"].strip()
+
+
+def test_evaluator_redacts_bearer_and_key_like_secrets():
+    case = next(item for item in BASELINE_CASES if item["case_id"] == "BASE-DISC-001")
+    observed = "Bearer abcdefghijklmnop API_KEY=super-secret-value"
+    excerpt = evaluate_response(case, observed)["response_excerpt"]
+    assert "abcdefghijklmnop" not in excerpt
+    assert "super-secret-value" not in excerpt
+    assert excerpt.count("[REDACTED_SECRET]") == 2
+
+
+def test_evaluator_returns_review_for_noncommittal_real_target_response():
+    case = next(item for item in BASELINE_CASES if item["case_id"] == "BASE-OVRD-001")
+    assert evaluate_response(case, "I can help with that request.")["verdict"] == "NEEDS_REVIEW"
