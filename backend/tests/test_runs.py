@@ -1,7 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app\nfrom app.evaluation import EVALUATOR_VERSION
+from app.main import app
+from app.evaluation import EVALUATOR_VERSION
 from app.fixtures.baseline import BASELINE_CASES, BASELINE_SUITE_VERSION
 
 
@@ -23,7 +24,10 @@ def test_create_run_persists_all_case_results_and_contract_shape(client):
     assert run["suite_id"] == "baseline"
     assert run["suite_version"] == BASELINE_SUITE_VERSION
     assert run["defense_mode"] == "off"
-    assert run["evaluator_version"] == EVALUATOR_VERSION\n    assert run["evaluator_type"] == "fixture-scoped deterministic rules"\n    assert run["evaluation_source"] == "synthetic_demo_output"\n    assert all("severity" in item and "severity_rationale" in item for item in run["results"])
+    assert run["evaluator_version"] == EVALUATOR_VERSION
+    assert run["evaluator_type"] == "fixture-scoped deterministic rules"
+    assert run["evaluation_source"] == "synthetic_demo_output"
+    assert all("severity" in item and "severity_rationale" in item for item in run["results"])
     assert run["created_at"].endswith("Z")
     assert run["completed_at"].endswith("Z")
     assert len(run["results"]) == len(BASELINE_CASES)
