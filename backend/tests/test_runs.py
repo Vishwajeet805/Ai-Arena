@@ -23,7 +23,7 @@ def test_create_run_persists_all_case_results_and_contract_shape(client):
     assert run["suite_id"] == "baseline"
     assert run["suite_version"] == "1.0.0"
     assert run["defense_mode"] == "off"
-    assert run["evaluator_version"] == "deterministic-rules-1.0.0"
+    assert run["evaluator_version"] == "deterministic-rules-1.1.0"
     assert run["created_at"].endswith("Z")
     assert run["completed_at"].endswith("Z")
     assert len(run["results"]) == len(BASELINE_CASES)
