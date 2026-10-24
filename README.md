@@ -161,10 +161,16 @@ npm run dev
 ```
 
 ### Optional constrained runner
-The runner is opt-in and is not launched by default:
+Docker Compose starts the restricted fixture runner alongside the API. The API dispatches synthetic fixture IDs to it over the internal-only Compose network. For an API smoke check, run `python scripts/smoke_test.py` after `docker compose up --build`.
 ```sh
-docker compose --profile runner build runner
-printf '%s' '{"case_ids":["BASE-PINJ-001"],"defense_mode":"on"}' | docker compose --profile runner run --rm -T runner
+# Inspect runner service health and logs
+docker compose ps runner
+docker compose logs --tail=50 runner
+
+# Verify API marks runner outages as ERROR: stop runner, then create a run via the API.
+docker compose stop runner
+# Restore after the check
+docker compose start runner
 ```
 Review the runner configuration and verify restrictions on your own Docker host before treating them as runtime evidence.
 
