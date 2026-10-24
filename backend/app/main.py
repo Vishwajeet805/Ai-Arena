@@ -218,6 +218,7 @@ def _run_case(case: dict, defense_mode: str, target_id: str = "demo_assistant") 
 
 
 def _serialize_run(run: RunRecord) -> dict:
+    case_contracts = {case["case_id"]: case for case in BASELINE_CASES}
     return {
         "run_id": run.run_id, "status": run.status, "target_id": run.target_id,
         "suite_id": run.suite_id, "suite_version": run.suite_version,
@@ -228,13 +229,16 @@ def _serialize_run(run: RunRecord) -> dict:
         "evaluation_source": ("synthetic_demo_output" if run.target_id == "demo_assistant" else "configured_target_observed_response"),
         "target_version": (RUN_TARGET_VERSION if run.target_id == "demo_assistant" else os.getenv("ARENA_LLM_MODEL", "configured-openai-compatible")),
         "results": [
-            {"case_id": result.case_id, "category": result.category,
-             "verdict": result.verdict, "reason": result.reason,
-             "response_excerpt": result.response_excerpt}
+            {
+                "case_id": result.case_id, "category": result.category,
+                "verdict": result.verdict, "reason": result.reason,
+                "response_excerpt": result.response_excerpt,
+                "severity": case_contracts.get(result.case_id, {}).get("severity", "unknown"),
+                "severity_rationale": case_contracts.get(result.case_id, {}).get("severity_rationale", "No fixture rationale available."),
+            }
             for result in run.results
         ],
     }
-
 
 def _load_run(db: Session, run_id: str) -> RunRecord:
     run = db.scalar(select(RunRecord).where(RunRecord.run_id == run_id))
