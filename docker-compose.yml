@@ -31,6 +31,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      runner:
+        condition: service_started
     restart: unless-stopped
 
   runner:
@@ -52,7 +54,6 @@ services:
       - /tmp:rw,noexec,nosuid,size=16m
     # Internal-only network: no internet egress, Docker socket, host mounts,
     # credentials, or published ports. API reaches it on runner_internal.
-    profiles: ["runner"]
 
   web:
     build:
