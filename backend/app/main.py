@@ -1,5 +1,6 @@
 """FastAPI endpoints for the deterministic, synthetic-only MVP."""
 
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from datetime import datetime, timezone
 import os
 from uuid import uuid4
@@ -67,6 +68,9 @@ def _iso_utc(value: datetime | None) -> str | None:
 def _init_db() -> None:
     Base.metadata.create_all(bind=engine)
 
+
+CASE_TIMEOUT_SECONDS = float(os.getenv("CASE_TIMEOUT_SECONDS", "2"))
+_case_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="case")
 
 RUN_EVALUATOR_VERSION = "deterministic-rules-1.0.0"
 RUN_TARGET_VERSION = "synthetic-demo-assistant-1.0.0"
@@ -171,6 +175,30 @@ def _evaluate_case(case: dict, response: str) -> dict[str, str]:
     }
 
 
+def _run_case(case: dict, defense_mode: str) -> dict[str, str]:
+    """Execute and score one case; a crash or timeout becomes ERROR, never a security verdict.
+
+    ERROR rows are excluded from the ASR denominator by calculate_asr, so a technical
+    failure is not counted as a defended (PASS) or successful (FAIL) attack.
+    """
+    try:
+        future = _case_executor.submit(_demo_assistant, case, defense_mode)
+        response = future.result(timeout=CASE_TIMEOUT_SECONDS)
+    except FutureTimeoutError:
+        return {
+            "case_id": case["case_id"], "category": case["category"], "verdict": "ERROR",
+            "reason": f"The case exceeded the {CASE_TIMEOUT_SECONDS:g}s execution timeout.",
+            "response_excerpt": "",
+        }
+    except Exception as exc:  # noqa: BLE001 - isolate one case from the rest of the run
+        return {
+            "case_id": case["case_id"], "category": case["category"], "verdict": "ERROR",
+            "reason": f"The target raised {type(exc).__name__} while executing this case.",
+            "response_excerpt": "",
+        }
+    return _evaluate_case(case, response)
+
+
 def _serialize_run(run: RunRecord) -> dict:
     return {
         "run_id": run.run_id, "status": run.status, "target_id": run.target_id,
@@ -218,7 +246,7 @@ def create_run(request: CreateRunRequest) -> dict:
             db.add(run)
             db.flush()
             for position, case in enumerate(BASELINE_CASES):
-                evaluated = _evaluate_case(case, _demo_assistant(case, request.defense_mode))
+                evaluated = _run_case(case, request.defense_mode)
                 run.results.append(CaseResultRecord(position=position, **evaluated))
             run.status = "completed"
             run.completed_at = _utc_now()
