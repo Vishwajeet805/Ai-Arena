@@ -223,7 +223,9 @@ def _serialize_run(run: RunRecord) -> dict:
         "suite_id": run.suite_id, "suite_version": run.suite_version,
         "defense_mode": run.defense_mode, "created_at": _iso_utc(run.created_at),
         "completed_at": _iso_utc(run.completed_at),
-        "evaluator_version": run.evaluator_version,\n        "evaluator_type": "fixture-scoped deterministic rules",\n        "evaluation_source": ("synthetic_demo_output" if run.target_id == "demo_assistant" else "configured_target_observed_response"),
+        "evaluator_version": run.evaluator_version,
+        "evaluator_type": "fixture-scoped deterministic rules",
+        "evaluation_source": ("synthetic_demo_output" if run.target_id == "demo_assistant" else "configured_target_observed_response"),
         "target_version": (RUN_TARGET_VERSION if run.target_id == "demo_assistant" else os.getenv("ARENA_LLM_MODEL", "configured-openai-compatible")),
         "results": [
             {"case_id": result.case_id, "category": result.category,
