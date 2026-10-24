@@ -17,7 +17,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, rela
 
 from app.fixtures.baseline import BASELINE_CASES, BASELINE_SUITE_ID, BASELINE_SUITE_VERSION
 from app.targets.openai_compatible import TargetAdapterError, call_configured_target
-from app.evaluation import evaluate_response
+from app.evaluation import EVALUATOR_VERSION, evaluate_response
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./arena_dev.db")
 _connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
@@ -78,7 +78,7 @@ def _init_db() -> None:
 CASE_TIMEOUT_SECONDS = float(os.getenv("CASE_TIMEOUT_SECONDS", "10"))
 _case_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="case")
 
-RUN_EVALUATOR_VERSION = "deterministic-rules-1.1.0"
+RUN_EVALUATOR_VERSION = EVALUATOR_VERSION
 RUN_TARGET_VERSION = "synthetic-demo-assistant-1.0.0"
 
 
@@ -223,7 +223,7 @@ def _serialize_run(run: RunRecord) -> dict:
         "suite_id": run.suite_id, "suite_version": run.suite_version,
         "defense_mode": run.defense_mode, "created_at": _iso_utc(run.created_at),
         "completed_at": _iso_utc(run.completed_at),
-        "evaluator_version": run.evaluator_version,
+        "evaluator_version": run.evaluator_version,\n        "evaluator_type": "fixture-scoped deterministic rules",\n        "evaluation_source": ("synthetic_demo_output" if run.target_id == "demo_assistant" else "configured_target_observed_response"),
         "target_version": (RUN_TARGET_VERSION if run.target_id == "demo_assistant" else os.getenv("ARENA_LLM_MODEL", "configured-openai-compatible")),
         "results": [
             {"case_id": result.case_id, "category": result.category,
