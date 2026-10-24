@@ -87,7 +87,7 @@ app = FastAPI(
     version="0.1.0",
     description=(
         "Synthetic demo plus optional configured LLM target. Runs execute in-process and are not sandboxed; "
-        "the separate runner container is not yet wired into orchestration."
+        "synthetic fixtures use RUNNER_URL when configured; local subprocess fallback is development-only."
     ),
 )
 
@@ -153,43 +153,57 @@ def _evaluate_case(case: dict, response: str) -> dict[str, str]:
     return evaluate_response(case, response)
 
 
-def _run_demo_cases_via_runner(defense_mode: str) -> list[dict[str, str]]:
-    """Execute each fixed fixture in its own bounded runner subprocess."""
+def _runner_request(case_id: str, defense_mode: str) -> dict:
+    """Dispatch one allowlisted fixture to runner service or local dev subprocess."""
+    request_body = json.dumps({"case_ids": [case_id], "defense_mode": defense_mode}).encode()
+    runner_url = os.getenv("RUNNER_URL", "").rstrip("/")
+    if runner_url:
+        from urllib.request import Request, urlopen
+        request = Request(runner_url + "/run", data=request_body,
+                          headers={"Content-Type": "application/json"}, method="POST")
+        with urlopen(request, timeout=CASE_TIMEOUT_SECONDS) as response:
+            if response.status != 200:
+                raise RuntimeError("runner_http_status")
+            raw = response.read(65537)
+            if len(raw) > 65536:
+                raise ValueError("runner_response_too_large")
+        return json.loads(raw)
+    # Local-development fallback only; this is not container isolation.
     runner_path = Path(__file__).resolve().parents[1] / "runner" / "runner.py"
+    completed = subprocess.run(
+        [sys.executable, str(runner_path)], input=request_body.decode(), capture_output=True,
+        text=True, timeout=CASE_TIMEOUT_SECONDS, check=False,
+        env={"PATH": os.getenv("PATH", ""), "PYTHONPATH": ""},
+    )
+    if completed.returncode != 0:
+        raise RuntimeError("runner_nonzero_exit")
+    return json.loads(completed.stdout)
+
+
+def _run_demo_cases_via_runner(defense_mode: str) -> list[dict[str, str]]:
+    """Dispatch fixed synthetic fixtures and validate runner protocol output."""
     evaluated = []
     for case in BASELINE_CASES:
         case_id = case["case_id"]
-        request = json.dumps({"case_ids": [case_id], "defense_mode": defense_mode})
         try:
-            completed = subprocess.run(
-                [sys.executable, str(runner_path)], input=request, capture_output=True,
-                text=True, timeout=CASE_TIMEOUT_SECONDS, check=False,
-                env={"PATH": os.getenv("PATH", ""), "PYTHONPATH": ""},
-            )
-            if completed.returncode != 0:
-                raise RuntimeError("runner_nonzero_exit")
-            payload = json.loads(completed.stdout)
-            rows = payload.get("results")
-            if payload.get("defense_mode") != defense_mode or not isinstance(rows, list) or len(rows) != 1:
+            payload = _runner_request(case_id, defense_mode)
+            if not isinstance(payload, dict) or set(payload) != {"results", "defense_mode"}:
+                raise ValueError("runner_invalid_shape")
+            rows = payload["results"]
+            if payload["defense_mode"] != defense_mode or not isinstance(rows, list) or len(rows) != 1:
                 raise ValueError("runner_invalid_shape")
             row = rows[0]
             if not isinstance(row, dict) or set(row) != {"case_id", "response"}:
                 raise ValueError("runner_invalid_row")
-            if row["case_id"] != case_id or not isinstance(row["response"], str):
+            if row["case_id"] != case_id or not isinstance(row["response"], str) or len(row["response"]) > 8192:
                 raise ValueError("runner_invalid_result")
             evaluated.append(_evaluate_case(case, row["response"]))
-        except subprocess.TimeoutExpired:
-            evaluated.append({
-                "case_id": case_id, "category": case["category"], "verdict": "ERROR",
-                "reason": f"Runner subprocess exceeded the {CASE_TIMEOUT_SECONDS:g}s timeout.",
-                "response_excerpt": "",
-            })
+        except (subprocess.TimeoutExpired, TimeoutError):
+            evaluated.append({"case_id": case_id, "category": case["category"], "verdict": "ERROR",
+                "reason": f"Runner exceeded the {CASE_TIMEOUT_SECONDS:g}s timeout.", "response_excerpt": ""})
         except Exception as exc:
-            evaluated.append({
-                "case_id": case_id, "category": case["category"], "verdict": "ERROR",
-                "reason": f"Runner orchestration failed ({type(exc).__name__}).",
-                "response_excerpt": "",
-            })
+            evaluated.append({"case_id": case_id, "category": case["category"], "verdict": "ERROR",
+                "reason": f"Runner orchestration failed ({type(exc).__name__}).", "response_excerpt": ""})
     return evaluated
 
 def _run_case(case: dict, defense_mode: str, target_id: str = "demo_assistant") -> dict[str, str]:
@@ -285,7 +299,7 @@ def list_suite_cases(suite_id: str) -> dict:
 
 @app.post("/api/v1/runs", status_code=202, tags=["runs"])
 def create_run(request: CreateRunRequest) -> dict:
-    """Run curated fixtures against selected target in-process and persist results."""
+    """Run synthetic fixtures via runner or configured target adapter and persist results."""
     now = _utc_now()
     run = RunRecord(
         run_id=str(uuid4()), status="running", target_id=request.target_id,
