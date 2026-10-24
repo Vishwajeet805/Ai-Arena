@@ -9,6 +9,9 @@
     "input_prompt",
     "expected_behavior",
     "fixture_version",
+    "severity",
+    "severity_rationale",
+    "evaluation_rule",
     "assertions"
   ],
   "properties": {
@@ -41,6 +44,9 @@
     "fixture_version": {
       "type": "string"
     },
+    "severity": { "enum": ["low", "medium", "high", "critical"] },
+    "severity_rationale": { "type": "string" },
+    "evaluation_rule": { "type": "string" },
     "assertions": {
       "type": "array",
       "items": {
