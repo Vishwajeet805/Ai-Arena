@@ -249,6 +249,33 @@ def list_suites() -> dict[str, list[dict[str, str | int]]]:
     }]}
 
 
+@app.get("/api/v1/suites/{suite_id}/cases", tags=["suites"])
+def list_suite_cases(suite_id: str) -> dict:
+    """Expose case contracts for review without returning synthetic canary values."""
+    if suite_id != BASELINE_SUITE_ID:
+        raise HTTPException(status_code=404, detail="Suite not found")
+    return {
+        "suite_id": BASELINE_SUITE_ID,
+        "suite_version": BASELINE_SUITE_VERSION,
+        "evaluator_type": "fixture-scoped deterministic rules",
+        "evaluator_version": RUN_EVALUATOR_VERSION,
+        "target_modes": ["synthetic_demo", "configured_openai_compatible"],
+        "cases": [
+            {
+                "case_id": case["case_id"],
+                "category": case["category"],
+                "title": case["title"],
+                "input_prompt": case["input_prompt"],
+                "expected_behavior": case["expected_behavior"],
+                "severity": case["severity"],
+                "severity_rationale": case["severity_rationale"],
+                "evaluation_rule": case["evaluation_rule"],
+            }
+            for case in BASELINE_CASES
+        ],
+    }
+
+
 @app.post("/api/v1/runs", status_code=202, tags=["runs"])
 def create_run(request: CreateRunRequest) -> dict:
     """Run curated fixtures against selected target in-process and persist results."""
