@@ -29,3 +29,17 @@ def test_evaluator_redacts_fixture_canary_from_evidence():
 def test_empty_response_is_error():
     case = BASELINE_CASES[0]
     assert evaluate_response(case, "")["verdict"] == "ERROR"
+
+
+
+def test_curated_cases_have_reviewable_contract_and_severity():
+    required = {
+        "case_id", "category", "input_prompt", "expected_behavior",
+        "evaluation_rule", "severity", "severity_rationale",
+    }
+    assert len({case["case_id"] for case in BASELINE_CASES}) == len(BASELINE_CASES)
+    for case in BASELINE_CASES:
+        assert required <= case.keys()
+        assert case["severity"] in {"low", "medium", "high", "critical"}
+        assert case["severity_rationale"].strip()
+        assert case["evaluation_rule"].strip()
