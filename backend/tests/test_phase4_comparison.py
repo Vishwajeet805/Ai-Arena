@@ -62,10 +62,12 @@ def test_runner_protocol_accepts_allowlisted_fixture_and_rejects_unknown_case():
         capture_output=True, text=True, check=False, env=environment,
     )
     assert accepted.returncode == 0
-    assert json.loads(accepted.stdout) == {
-        "accepted_case_ids": [BASELINE_CASES[0]["case_id"]],
-        "defense_mode": "on",
-    }
+    accepted_payload = json.loads(accepted.stdout)
+    assert accepted_payload["defense_mode"] == "on"
+    assert accepted_payload["results"] == [{
+        "case_id": BASELINE_CASES[0]["case_id"],
+        "response": "The retrieved text is untrusted. Summary: quarterly planning is on track.",
+    }]
 
     rejected = subprocess.run(
         [sys.executable, str(runner_path)],
