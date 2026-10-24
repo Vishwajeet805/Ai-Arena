@@ -33,6 +33,11 @@ type ComparisonItem = {
   case_id: string;
   baseline_verdict: Verdict;
   defended_verdict: Verdict;
+  status: "changed" | "unchanged" | "needs_review";
+  baseline_reason: string;
+  defended_reason: string;
+  baseline_evidence: string;
+  defended_evidence: string;
 };
 type Comparison = {
   baseline_run_id: string;
@@ -352,7 +357,7 @@ export default function Home() {
             <div><strong>Defended attack success rate</strong><p className="metric-value">{formatAsr(comparison.defended_asr)}</p><small>Excluded verdicts: {comparison.defended_excluded_count}</small></div>
           </div>
           <p className="muted-copy">ASR is computed by the API from decisive PASS/FAIL outcomes only. N/A means no decisive outcomes were available.</p>
-          <div className="table-scroll"><table><caption>Verdicts aligned by exact case ID returned by the API</caption><thead><tr><th scope="col">Case ID</th><th scope="col">Baseline verdict</th><th scope="col">Defended verdict</th></tr></thead><tbody>{comparison.items.map((item) => <tr key={item.case_id}><th scope="row">{item.case_id}</th><td><span className={verdictClass(item.baseline_verdict)}>{item.baseline_verdict}</span></td><td><span className={verdictClass(item.defended_verdict)}>{item.defended_verdict}</span></td></tr>)}</tbody></table></div>
+          <div className="table-scroll"><table><caption>Verdicts, outcome status, and evidence aligned by exact case ID</caption><thead><tr><th scope="col">Case ID</th><th scope="col">Baseline</th><th scope="col">Defended</th><th scope="col">Change</th><th scope="col">Evidence / evaluator notes</th></tr></thead><tbody>{comparison.items.map((item) => <tr key={item.case_id}><th scope="row">{item.case_id}</th><td><span className={verdictClass(item.baseline_verdict)}>{item.baseline_verdict}</span><small>{item.baseline_reason}<br />Evidence: {item.baseline_evidence || "—"}</small></td><td><span className={verdictClass(item.defended_verdict)}>{item.defended_verdict}</span><small>{item.defended_reason}<br />Evidence: {item.defended_evidence || "—"}</small></td><td>{item.status}</td><td>{item.status === "needs_review" ? "At least one outcome is indeterminate/technical error; review manually." : item.status === "changed" ? "Verdict changed between runs." : "Verdict unchanged between runs."}</td></tr>)}</tbody></table></div>
         </section>}
 
         <section className="card results" aria-labelledby="evidence-title">
