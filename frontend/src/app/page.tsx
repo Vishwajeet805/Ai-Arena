@@ -304,7 +304,7 @@ export default function Home() {
           <p className="intro">Run the curated synthetic security suite against the demo assistant, inspect case evidence, and compare baseline with defenses enabled.</p>
           <div className="notice" role="note">
             <strong>Prototype safety note</strong>
-            <p>This MVP uses a deterministic synthetic assistant. Runs execute in-process, are not sandboxed, and do not test a real external model.</p>
+            <p>The synthetic assistant is a deterministic demo. A configured OpenAI-compatible endpoint can be tested, but runs execute in-process and are not sandboxed; use only authorized test targets and synthetic fixtures.</p>
           </div>
         </section>
 
@@ -316,9 +316,9 @@ export default function Home() {
           <div className="form-grid">
             <label htmlFor="target-select">Demo target
               <select id="target-select" value={targetId} onChange={(event) => setTargetId(event.target.value)} disabled={busy || apiStatus !== "connected"}>
-                <option value="demo_assistant">Synthetic demo assistant</option>
+                <option value="demo_assistant">Synthetic demo assistant</option><option value="openai_compatible">Configured OpenAI-compatible model</option>
               </select>
-              <small>The API currently supports only demo_assistant.</small>
+              <small>Real-model option requires backend-only ARENA_LLM_* settings; provider credentials never belong in the browser.</small>
             </label>
             <label htmlFor="suite-select">Test suite
               <select id="suite-select" value={suiteId} onChange={(event) => setSuiteId(event.target.value)} disabled={busy || apiStatus !== "connected" || suites.length === 0}>
