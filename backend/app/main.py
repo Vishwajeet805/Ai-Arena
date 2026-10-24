@@ -208,7 +208,7 @@ def _serialize_run(run: RunRecord) -> dict:
         "defense_mode": run.defense_mode, "created_at": _iso_utc(run.created_at),
         "completed_at": _iso_utc(run.completed_at),
         "evaluator_version": run.evaluator_version,
-        "target_version": RUN_TARGET_VERSION,
+        "target_version": (RUN_TARGET_VERSION if run.target_id == "demo_assistant" else os.getenv("ARENA_LLM_MODEL", "configured-openai-compatible")),
         "results": [
             {"case_id": result.case_id, "category": result.category,
              "verdict": result.verdict, "reason": result.reason,
