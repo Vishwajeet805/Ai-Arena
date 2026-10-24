@@ -86,8 +86,8 @@ app = FastAPI(
     title="AI Red-Team Arena API",
     version="0.1.0",
     description=(
-        "Synthetic demo plus optional configured LLM target. Runs execute in-process and are not sandboxed; "
-        "synthetic fixtures use RUNNER_URL when configured; local subprocess fallback is development-only."
+        "Synthetic demo plus optional configured LLM target. Synthetic fixtures use RUNNER_URL when configured; "
+        "the local subprocess fallback and configured external-target adapter are not sandboxed."
     ),
 )
 
