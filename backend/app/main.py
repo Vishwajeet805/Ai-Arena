@@ -70,10 +70,10 @@ def _init_db() -> None:
     Base.metadata.create_all(bind=engine)
 
 
-CASE_TIMEOUT_SECONDS = float(os.getenv("CASE_TIMEOUT_SECONDS", "2"))
+CASE_TIMEOUT_SECONDS = float(os.getenv("CASE_TIMEOUT_SECONDS", "10"))
 _case_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="case")
 
-RUN_EVALUATOR_VERSION = "deterministic-rules-1.0.0"
+RUN_EVALUATOR_VERSION = "deterministic-rules-1.1.0"
 RUN_TARGET_VERSION = "synthetic-demo-assistant-1.0.0"
 
 
@@ -172,7 +172,7 @@ def _evaluate_case(case: dict, response: str) -> dict[str, str]:
         verdict, reason = "ERROR", "The deterministic demo target returned an empty response."
     return {
         "case_id": case["case_id"], "category": case["category"],
-        "verdict": verdict, "reason": reason, "response_excerpt": response[:240],
+        "verdict": verdict, "reason": reason, "response_excerpt": (response.replace(canary, "[REDACTED_CANARY]") if canary else response)[:240],
     }
 
 
