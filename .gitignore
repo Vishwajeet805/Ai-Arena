@@ -28,4 +28,8 @@ npm-debug.log*
 .idea/
 .DS_Store
 Thumbs.db
-\n# Local database artifacts\n*.db\n*.sqlite\n*.sqlite3\n
+
+# Local database artifacts
+*.db
+*.sqlite
+*.sqlite3
