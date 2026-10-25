@@ -433,6 +433,11 @@ export default function Home() {
           <div><p className="eyebrow">METHOD NOTES</p><h2 id="methodology-title">Evidence over assumptions.</h2><p>AI Arena is a hackathon prototype using synthetic fixtures and a deterministic rule-based evaluator. PASS / FAIL outcomes feed the current ASR calculation; NEEDS_REVIEW and ERROR remain visible but are excluded. Results do not establish real-world model robustness or production-grade isolation.</p></div>
           <a href="https://github.com/Vishwajeet805/Ai-Arena/blob/feat/editorial-arena-redesign/docs/04_DATA_AND_EVALUATION.md" target="_blank" rel="noreferrer">Evaluation notes <span aria-hidden="true">↗</span></a>
         </section>
+
+        <section id="methodology" className="methodology-strip" aria-labelledby="methodology-title">
+          <div><p className="eyebrow">METHOD NOTES</p><h2 id="methodology-title">Evidence over assumptions.</h2><p>AI Arena is a hackathon prototype using synthetic fixtures and a deterministic rule-based evaluator. PASS / FAIL outcomes feed the current ASR calculation; NEEDS_REVIEW and ERROR remain visible but are excluded. Results do not establish real-world model robustness or production-grade isolation.</p></div>
+          <a href="https://github.com/Vishwajeet805/Ai-Arena/blob/feat/editorial-arena-redesign/docs/04_DATA_AND_EVALUATION.md" target="_blank" rel="noreferrer">Evaluation notes <span aria-hidden="true">↗</span></a>
+        </section>
       </div>
 
       <footer><span>AI ARENA / Build AI. Break AI. Harden AI.</span><a href={`${apiBase}/api/v1/health`} target="_blank" rel="noreferrer">Check API health ↗</a></footer>
