@@ -88,6 +88,19 @@ This is a **hackathon MVP / prototype**, not a production certification tool.
 
 Use only fixtures and systems you own or are explicitly authorized to test. Do not submit secrets, production records or third-party targets.
 
+### Optional real AI target (Phase 7A)
+
+The dashboard offers **Configured OpenAI-compatible model** in addition to the synthetic demo. To use it, configure these variables in the **backend/API environment only**:
+
+- `ARENA_LLM_BASE_URL`: provider's HTTPS API base URL, for example `https://api.openai.com/v1`.
+- `ARENA_LLM_MODEL`: model identifier enabled for your account.
+- `ARENA_LLM_API_KEY`: provider key, supplied through the hosting provider's secret/environment settings; do not commit it or expose it to the browser.
+- `ARENA_LLM_TIMEOUT_SECONDS`: request timeout from greater than 0 up to 60 seconds (default 8).
+
+The adapter sends only the curated synthetic fixture prompt and synthetic retrieved text to the configured endpoint. Use only a model/account and endpoint you are authorized to test. The endpoint must use HTTPS; responses are size-bounded and provider errors are sanitized. If the target is not configured, the run records per-case `ERROR` outcomes rather than silently falling back to the synthetic assistant. The rule-based evaluator remains fixture-scoped and may return `NEEDS_REVIEW`; this is not a general-purpose LLM security guarantee.
+
+For local use, copy the variable names from `.env.example` into your ignored local `.env` file and supply a valid key locally. For Render, set them in the API service's environment settings. Never set these variables on the Vercel frontend.
+
 ## Architecture
 
 ```text
