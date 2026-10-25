@@ -23,6 +23,12 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://arena:local_dev_change_me@db:5432/arena}
       CORS_ORIGINS: http://localhost:3000
       RUNNER_URL: http://runner:8081
+      ARENA_CONFIGURED_TARGETS_ENABLED: ${ARENA_CONFIGURED_TARGETS_ENABLED:-false}
+      ARENA_CONFIGURED_TARGETS_TOKEN: ${ARENA_CONFIGURED_TARGETS_TOKEN:-}
+      ARENA_LLM_BASE_URL: ${ARENA_LLM_BASE_URL:-}
+      ARENA_LLM_MODEL: ${ARENA_LLM_MODEL:-}
+      ARENA_LLM_API_KEY: ${ARENA_LLM_API_KEY:-}
+      ARENA_LLM_TIMEOUT_SECONDS: ${ARENA_LLM_TIMEOUT_SECONDS:-8}
     networks:
       - default
       - runner_internal
