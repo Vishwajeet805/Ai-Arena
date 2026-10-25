@@ -4,19 +4,24 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from datetime import datetime, timezone
 import json
 import os
+import secrets
 import subprocess
 import sys
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import DateTime, ForeignKey, String, Text, create_engine, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
 
 from app.fixtures.baseline import BASELINE_CASES, BASELINE_SUITE_ID, BASELINE_SUITE_VERSION
-from app.targets.openai_compatible import TargetAdapterError, call_configured_target
+from app.targets.openai_compatible import (
+    TargetAdapterError,
+    call_configured_target,
+    validate_target_configuration,
+)
 from app.evaluation import EVALUATOR_VERSION, evaluate_response
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./arena_dev.db")
@@ -107,8 +112,9 @@ app = FastAPI(
     title="AI Red-Team Arena API",
     version="0.1.0",
     description=(
-        "Synthetic demo plus optional configured LLM target. Synthetic fixtures use RUNNER_URL when configured; "
-        "the local subprocess fallback and configured external-target adapter are not sandboxed."
+        "Synthetic demo runs are available without provider credentials. Configured-target runs are disabled "
+        "unless explicitly enabled and authorized; the local subprocess fallback and configured target adapter "
+        "are not sandboxed."
     ),
 )
 
@@ -145,6 +151,31 @@ class CompareRunsRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     baseline_run_id: str = Field(..., min_length=1)
     defended_run_id: str = Field(..., min_length=1)
+
+
+def _authorize_configured_target(authorization: str | None) -> None:
+    enabled = os.getenv("ARENA_CONFIGURED_TARGETS_ENABLED", "false").strip().lower() == "true"
+    expected_token = os.getenv("ARENA_CONFIGURED_TARGETS_TOKEN", "")
+    if (
+        not enabled
+        or not 32 <= len(expected_token) <= 512
+        or not expected_token.isascii()
+        or any(character.isspace() for character in expected_token)
+    ):
+        raise HTTPException(status_code=403, detail="Configured-target execution is disabled.")
+
+    scheme, separator, provided_token = (authorization or "").partition(" ")
+    if (
+        not separator
+        or scheme.lower() != "bearer"
+        or not provided_token
+        or not secrets.compare_digest(provided_token.encode("utf-8"), expected_token.encode("utf-8"))
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Valid configured-target authorization is required.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 def _demo_assistant(case: dict, defense_mode: str) -> str:
@@ -343,8 +374,21 @@ def list_suite_cases(suite_id: str) -> dict:
 
 
 @app.post("/api/v1/runs", status_code=202, tags=["runs"])
-def create_run(request: CreateRunRequest) -> dict:
-    """Run synthetic fixtures via runner or configured target adapter and persist results."""
+def create_run(
+    request: CreateRunRequest,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    """Run synthetic fixtures or, when enabled and authorized, the configured target."""
+    if request.target_id == "openai_compatible":
+        _authorize_configured_target(authorization)
+        try:
+            validate_target_configuration()
+        except TargetAdapterError:
+            raise HTTPException(
+                status_code=503,
+                detail="Configured target is unavailable; check its backend configuration.",
+            ) from None
+
     now = _utc_now()
     run = RunRecord(
         run_id=str(uuid4()), status="running", target_id=request.target_id,

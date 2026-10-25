@@ -44,6 +44,18 @@ It is designed to make security checks **repeatable, inspectable, and easier to 
 
 The hosted flow has been manually smoke-tested for suite loading, baseline/defended runs, history, comparison and JSON export. Render's free service may need a short wake-up period after inactivity.
 
+## Dashboard routes
+
+| Route | Purpose |
+|---|---|
+| `/` | Cinematic overview and entry point |
+| `/arena` | API-driven evaluation workspace for configuring runs, comparing outcomes, inspecting evidence, and exporting reports |
+| `/history` | Latest persisted runs returned by the API |
+| `/history/{run_id}` | Persisted run metadata, case evidence, and JSON/CSV report exports |
+| `/methodology` | Current evaluator semantics, ASR calculation, comparison requirements, report contents, and limitations |
+
+The workspace loads suites and submits baseline/defended runs to the configured API. Open the methodology page before interpreting outcomes: verdicts use fixture-scoped rules, and ASR excludes `NEEDS_REVIEW` and `ERROR` results.
+
 ## How the experiment works
 
 ```mermaid
@@ -90,16 +102,20 @@ Use only fixtures and systems you own or are explicitly authorized to test. Do n
 
 ### Optional real AI target (Phase 7A)
 
-The dashboard offers **Configured OpenAI-compatible model** in addition to the synthetic demo. To use it, configure these variables in the **backend/API environment only**:
+Configured-target execution is **disabled by default**. Synthetic demo runs remain available without provider settings or an access token. To deliberately enable configured-target API requests, set `ARENA_CONFIGURED_TARGETS_ENABLED=true` and configure a randomly generated `ARENA_CONFIGURED_TARGETS_TOKEN` of at least 32 characters in the **backend/API environment only**. For example, generate one locally with `py -3 -c "import secrets; print(secrets.token_urlsafe(32))"` and store it directly in your secret manager. Requests to `POST /api/v1/runs` using `target_id: "openai_compatible"` must include `Authorization: Bearer <ARENA_CONFIGURED_TARGETS_TOKEN>`. An absent/invalid enable flag or access token keeps execution disabled; missing or invalid provider settings are rejected before a run is created.
+
+The dashboard does not collect or store the backend access token, so configured-target execution is currently intended only for trusted API clients that can safely send the authorization header. Never put the token or provider credentials in frontend code, browser storage, or a `NEXT_PUBLIC_*` variable. Do not enable this feature on a public deployment until access-token handling, authorized-user distribution, rotation, rate/quota limits, and monitoring fit the deployment’s security requirements. CORS is not authentication, and this opt-in does not make the service production-secure.
+
+To configure the optional OpenAI-compatible endpoint, set these variables in the **backend/API environment only**:
 
 - `ARENA_LLM_BASE_URL`: provider's HTTPS API base URL, for example `https://api.openai.com/v1`.
 - `ARENA_LLM_MODEL`: model identifier enabled for your account.
 - `ARENA_LLM_API_KEY`: provider key, supplied through the hosting provider's secret/environment settings; do not commit it or expose it to the browser.
 - `ARENA_LLM_TIMEOUT_SECONDS`: request timeout from greater than 0 up to 60 seconds (default 8).
 
-The adapter sends only the curated synthetic fixture prompt and synthetic retrieved text to the configured endpoint. Use only a model/account and endpoint you are authorized to test. The endpoint must use HTTPS; responses are size-bounded and provider errors are sanitized. If the target is not configured, the run records per-case `ERROR` outcomes rather than silently falling back to the synthetic assistant. The rule-based evaluator remains fixture-scoped and may return `NEEDS_REVIEW`; this is not a general-purpose LLM security guarantee.
+The adapter sends only the curated synthetic fixture prompt and synthetic retrieved text to the configured endpoint. Use only a model/account and endpoint you are authorized to test. The endpoint must use HTTPS; responses are size-bounded and provider errors are sanitized. Missing or invalid provider configuration is rejected rather than silently falling back to the synthetic assistant. The rule-based evaluator remains fixture-scoped and may return `NEEDS_REVIEW`; this is not a general-purpose LLM security guarantee.
 
-For local use, copy the variable names from `.env.example` into your ignored local `.env` file and supply a valid key locally. For Render, set them in the API service's environment settings. Never set these variables on the Vercel frontend.
+For local use, copy `.env.example` to the ignored local `.env` file. The safe defaults keep configured-target execution disabled. To test it from a trusted API client, explicitly enable it and set a strong token plus provider configuration in `.env`; do not expose either credential to the browser. For Render, leave it disabled unless you have explicitly approved the access-control and quota protections, then set the enable flag, access token, and provider settings in the API service's secret/environment settings. Never set these variables on the Vercel frontend.
 
 ## Architecture
 
@@ -193,6 +209,7 @@ Review the runner configuration and verify restrictions on your own Docker host 
 - **Vercel variable:** `NEXT_PUBLIC_API_BASE_URL=https://ai-arena-pa82.onrender.com`
 - **Render API root:** `backend`
 - **Render environment:** PostgreSQL `DATABASE_URL` and `CORS_ORIGINS=https://ai-arena-five-pi.vercel.app`
+- **Configured-target runs:** disabled by default; only enable in the backend environment with an access token and provider settings after reviewing public API access, token distribution/rotation, and usage limits. The frontend must not receive the token.
 
 Never commit database URLs containing credentials, API keys or other secrets.
 

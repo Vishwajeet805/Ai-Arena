@@ -9,6 +9,7 @@ from app.fixtures.baseline import BASELINE_CASES
 from app.main import _demo_assistant, _evaluate_case, app, calculate_asr
 
 client = TestClient(app)
+TEST_TARGET_TOKEN = "test-target-token-0123456789abcdef"
 
 
 @pytest.mark.parametrize("case", BASELINE_CASES, ids=lambda c: c["case_id"])
@@ -116,13 +117,18 @@ def test_configured_target_exception_is_error_not_security_verdict(monkeypatch):
 
 
 def test_real_target_run_api_marks_source_and_case_contract(monkeypatch):
+    monkeypatch.setenv("ARENA_CONFIGURED_TARGETS_ENABLED", "true")
+    monkeypatch.setenv("ARENA_CONFIGURED_TARGETS_TOKEN", TEST_TARGET_TOKEN)
+    monkeypatch.setenv("ARENA_LLM_BASE_URL", "https://example.test/v1")
+    monkeypatch.setenv("ARENA_LLM_MODEL", "test-model")
+    monkeypatch.setenv("ARENA_LLM_API_KEY", "test-provider-key")
     monkeypatch.setattr(
         main, "call_configured_target",
         lambda case, _mode: "I cannot disclose or perform the requested restricted action.",
     )
     response = client.post("/api/v1/runs", json={
         "target_id": "openai_compatible", "suite_id": "baseline", "defense_mode": "on",
-    })
+    }, headers={"Authorization": f"Bearer {TEST_TARGET_TOKEN}"})
     assert response.status_code == 202
     body = response.json()
     assert body["evaluation_source"] == "configured_target_observed_response"
@@ -130,6 +136,126 @@ def test_real_target_run_api_marks_source_and_case_contract(monkeypatch):
     assert body["evaluator_version"] == main.EVALUATOR_VERSION
     assert all(row["severity"] in {"high", "medium"} for row in body["results"])
     assert all(row["severity_rationale"] for row in body["results"])
+
+
+def test_configured_target_is_disabled_by_default(monkeypatch):
+    monkeypatch.delenv("ARENA_CONFIGURED_TARGETS_ENABLED", raising=False)
+    monkeypatch.delenv("ARENA_CONFIGURED_TARGETS_TOKEN", raising=False)
+    monkeypatch.setattr(
+        main, "call_configured_target",
+        lambda *_: pytest.fail("Configured target must not be invoked when disabled."),
+    )
+
+    response = client.post("/api/v1/runs", json={
+        "target_id": "openai_compatible", "suite_id": "baseline", "defense_mode": "off",
+    })
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Configured-target execution is disabled."
+
+
+@pytest.mark.parametrize("enabled_value", ["false", "yes", "1", ""])
+def test_configured_target_is_disabled_for_non_true_enable_values(monkeypatch, enabled_value):
+    monkeypatch.setenv("ARENA_CONFIGURED_TARGETS_ENABLED", enabled_value)
+    monkeypatch.setenv("ARENA_CONFIGURED_TARGETS_TOKEN", TEST_TARGET_TOKEN)
+    monkeypatch.setattr(
+        main, "call_configured_target",
+        lambda *_: pytest.fail("Configured target must not be invoked unless explicitly enabled."),
+    )
+
+    response = client.post("/api/v1/runs", json={
+        "target_id": "openai_compatible", "suite_id": "baseline", "defense_mode": "off",
+    })
+
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize("authorization", [None, "Bearer incorrect-token"])
+def test_configured_target_requires_token_even_when_enabled(monkeypatch, authorization):
+    monkeypatch.setenv("ARENA_CONFIGURED_TARGETS_ENABLED", "true")
+    monkeypatch.setenv("ARENA_CONFIGURED_TARGETS_TOKEN", TEST_TARGET_TOKEN)
+    monkeypatch.setattr(
+        main, "call_configured_target",
+        lambda *_: pytest.fail("Configured target must not be invoked without authorization."),
+    )
+
+    headers = {"Authorization": authorization} if authorization is not None else {}
+    response = client.post("/api/v1/runs", json={
+        "target_id": "openai_compatible", "suite_id": "baseline", "defense_mode": "off",
+    }, headers=headers)
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+    assert TEST_TARGET_TOKEN not in response.text
+
+
+@pytest.mark.parametrize("configured_token", ["", " ", "short", "x" * 513])
+def test_configured_target_is_disabled_without_valid_auth_token_configuration(monkeypatch, configured_token):
+    monkeypatch.setenv("ARENA_CONFIGURED_TARGETS_ENABLED", "true")
+    monkeypatch.setenv("ARENA_CONFIGURED_TARGETS_TOKEN", configured_token)
+    monkeypatch.setattr(
+        main, "call_configured_target",
+        lambda *_: pytest.fail("Configured target must not be invoked without a configured access token."),
+    )
+
+    response = client.post("/api/v1/runs", json={
+        "target_id": "openai_compatible", "suite_id": "baseline", "defense_mode": "off",
+    }, headers={"Authorization": f"Bearer {TEST_TARGET_TOKEN}"})
+
+    assert response.status_code == 403
+
+
+def test_configured_target_rejects_missing_or_invalid_provider_configuration(monkeypatch):
+    monkeypatch.setenv("ARENA_CONFIGURED_TARGETS_ENABLED", "true")
+    monkeypatch.setenv("ARENA_CONFIGURED_TARGETS_TOKEN", TEST_TARGET_TOKEN)
+    monkeypatch.delenv("ARENA_LLM_API_KEY", raising=False)
+    monkeypatch.setattr(
+        main, "call_configured_target",
+        lambda *_: pytest.fail("Configured target must not be invoked with incomplete provider configuration."),
+    )
+
+    response = client.post("/api/v1/runs", json={
+        "target_id": "openai_compatible", "suite_id": "baseline", "defense_mode": "off",
+    }, headers={"Authorization": f"Bearer {TEST_TARGET_TOKEN}"})
+
+    assert response.status_code == 503
+    assert "backend configuration" in response.json()["detail"]
+
+
+def test_configured_target_rejects_invalid_provider_endpoint(monkeypatch):
+    monkeypatch.setenv("ARENA_CONFIGURED_TARGETS_ENABLED", "true")
+    monkeypatch.setenv("ARENA_CONFIGURED_TARGETS_TOKEN", TEST_TARGET_TOKEN)
+    monkeypatch.setenv("ARENA_LLM_BASE_URL", "http://example.test/v1")
+    monkeypatch.setenv("ARENA_LLM_MODEL", "test-model")
+    monkeypatch.setenv("ARENA_LLM_API_KEY", "test-provider-key")
+    monkeypatch.setattr(
+        main, "call_configured_target",
+        lambda *_: pytest.fail("Configured target must not be invoked with an invalid endpoint."),
+    )
+
+    response = client.post("/api/v1/runs", json={
+        "target_id": "openai_compatible", "suite_id": "baseline", "defense_mode": "off",
+    }, headers={"Authorization": f"Bearer {TEST_TARGET_TOKEN}"})
+
+    assert response.status_code == 503
+    assert "backend configuration" in response.json()["detail"]
+
+
+def test_synthetic_run_remains_available_when_configured_targets_are_disabled(monkeypatch):
+    monkeypatch.delenv("ARENA_CONFIGURED_TARGETS_ENABLED", raising=False)
+    monkeypatch.delenv("ARENA_CONFIGURED_TARGETS_TOKEN", raising=False)
+    monkeypatch.setattr(
+        main, "call_configured_target",
+        lambda *_: pytest.fail("Synthetic runs must not call the configured target adapter."),
+    )
+
+    response = client.post("/api/v1/runs", json={
+        "target_id": "demo_assistant", "suite_id": "baseline", "defense_mode": "on",
+    })
+
+    assert response.status_code == 202
+    assert response.json()["status"] == "completed"
+    assert len(response.json()["results"]) == len(BASELINE_CASES)
 
 
 

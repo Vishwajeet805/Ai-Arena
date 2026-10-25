@@ -53,6 +53,10 @@ def _configuration() -> tuple[str, str, str, float]:
     return endpoint, model, api_key, timeout
 
 
+def validate_target_configuration() -> None:
+    _configuration()
+
+
 def _safe_provider_error(exc: HTTPError, api_key: str) -> str:
     """Expose only short provider error identifiers, never raw response bodies."""
     details = {}
