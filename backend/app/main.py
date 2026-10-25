@@ -40,6 +40,8 @@ class RunRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     evaluator_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    target_version: Mapped[str] = mapped_column(String(128), nullable=False, default="synthetic-demo-assistant-1.0.0")
+    defense_config_id: Mapped[str] = mapped_column(String(64), nullable=False, default="demo-defense-v1")
     results: Mapped[list["CaseResultRecord"]] = relationship(
         back_populates="run", cascade="all, delete-orphan",
         order_by="CaseResultRecord.position",
@@ -73,6 +75,15 @@ def _iso_utc(value: datetime | None) -> str | None:
 
 def _init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    # create_all does not add columns to existing deployments; keep this small additive
+    # migration safe for existing SQLite and PostgreSQL databases.
+    from sqlalchemy import inspect, text
+    with engine.begin() as connection:
+        columns = {column["name"] for column in inspect(connection).get_columns("runs")}
+        if "target_version" not in columns:
+            connection.execute(text("ALTER TABLE runs ADD COLUMN target_version VARCHAR(128) NOT NULL DEFAULT 'synthetic-demo-assistant-1.0.0'"))
+        if "defense_config_id" not in columns:
+            connection.execute(text("ALTER TABLE runs ADD COLUMN defense_config_id VARCHAR(64) NOT NULL DEFAULT 'demo-defense-v1'"))
 
 
 CASE_TIMEOUT_SECONDS = float(os.getenv("CASE_TIMEOUT_SECONDS", "10"))
@@ -80,6 +91,16 @@ _case_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="case")
 
 RUN_EVALUATOR_VERSION = EVALUATOR_VERSION
 RUN_TARGET_VERSION = "synthetic-demo-assistant-1.0.0"
+REPORT_LIMITATIONS = [
+    "The curated suite uses synthetic fixtures and deterministic rule-based evaluation.",
+    "Results are not a security guarantee or a measurement of broad real-world LLM robustness.",
+    "NEEDS_REVIEW and ERROR outcomes are excluded from the decisive PASS/FAIL ASR denominator.",
+    "Configured external targets are only tested with authorized targets and synthetic fixtures.",
+]
+
+
+def _defense_config_id(defense_mode: str) -> str:
+    return "demo-defense-v1" if defense_mode == "on" else "no-defense-v1"
 
 
 app = FastAPI(
@@ -217,8 +238,7 @@ def _run_case(case: dict, defense_mode: str, target_id: str = "demo_assistant") 
         future = _case_executor.submit(target_fn, case, defense_mode)
         response = future.result(timeout=CASE_TIMEOUT_SECONDS)
     except FutureTimeoutError:
-        return {
-            "case_id": case["case_id"], "category": case["category"], "verdict": "ERROR",
+        return {            "case_id": case["case_id"], "category": case["category"], "verdict": "ERROR",
             "reason": f"The case exceeded the {CASE_TIMEOUT_SECONDS:g}s execution timeout.",
             "response_excerpt": "",
         }
@@ -239,9 +259,10 @@ def _serialize_run(run: RunRecord) -> dict:
         "defense_mode": run.defense_mode, "created_at": _iso_utc(run.created_at),
         "completed_at": _iso_utc(run.completed_at),
         "evaluator_version": run.evaluator_version,
+        "target_version": run.target_version,
+        "defense_config_id": run.defense_config_id,
         "evaluator_type": "fixture-scoped deterministic rules",
         "evaluation_source": ("synthetic_demo_output" if run.target_id == "demo_assistant" else "configured_target_observed_response"),
-        "target_version": (RUN_TARGET_VERSION if run.target_id == "demo_assistant" else os.getenv("ARENA_LLM_MODEL", "configured-openai-compatible")),
         "results": [
             {
                 "case_id": result.case_id, "category": result.category,
@@ -306,6 +327,8 @@ def create_run(request: CreateRunRequest) -> dict:
         suite_id=request.suite_id, suite_version=BASELINE_SUITE_VERSION,
         defense_mode=request.defense_mode, created_at=now, completed_at=None,
         evaluator_version=RUN_EVALUATOR_VERSION,
+        target_version=(RUN_TARGET_VERSION if request.target_id == "demo_assistant" else os.getenv("ARENA_LLM_MODEL", "configured-openai-compatible")),
+        defense_config_id=_defense_config_id(request.defense_mode),
     )
     try:
         with SessionLocal() as db:
@@ -369,6 +392,7 @@ def compare_runs(request: CompareRunsRequest) -> dict:
             baseline.suite_id != defended.suite_id
             or baseline.suite_version != defended.suite_version
             or baseline.target_id != defended.target_id
+            or baseline.target_version != defended.target_version
             or baseline.evaluator_version != defended.evaluator_version
         ):
             raise HTTPException(status_code=409, detail="Run suite, target, or evaluator versions are incompatible")
@@ -408,6 +432,25 @@ def compare_runs(request: CompareRunsRequest) -> dict:
             {key: result.verdict for key, result in defended_results.items()}
         )
         return {
+            "generated_at": _iso_utc(_utc_now()),
+            "evaluation_method": "fixture-scoped deterministic rules",
+            "limitations": REPORT_LIMITATIONS,
+            "baseline_metadata": {
+                "run_id": baseline.run_id, "target_id": baseline.target_id,
+                "target_version": baseline.target_version, "suite_id": baseline.suite_id,
+                "suite_version": baseline.suite_version, "defense_mode": baseline.defense_mode,
+                "defense_config_id": baseline.defense_config_id,
+                "evaluator_version": baseline.evaluator_version,
+                "created_at": _iso_utc(baseline.created_at), "completed_at": _iso_utc(baseline.completed_at),
+            },
+            "defended_metadata": {
+                "run_id": defended.run_id, "target_id": defended.target_id,
+                "target_version": defended.target_version, "suite_id": defended.suite_id,
+                "suite_version": defended.suite_version, "defense_mode": defended.defense_mode,
+                "defense_config_id": defended.defense_config_id,
+                "evaluator_version": defended.evaluator_version,
+                "created_at": _iso_utc(defended.created_at), "completed_at": _iso_utc(defended.completed_at),
+            },
             "baseline_run_id": baseline.run_id, "defended_run_id": defended.run_id,
             "baseline_asr": baseline_asr, "defended_asr": defended_asr,
             "baseline_excluded_count": baseline_excluded_count,
@@ -418,4 +461,15 @@ def compare_runs(request: CompareRunsRequest) -> dict:
 @app.get("/api/v1/runs/{run_id}/report", tags=["reports"])
 def get_run_report(run_id: str) -> dict:
     with SessionLocal() as db:
-        return _serialize_run(_load_run(db, run_id))
+        run = _load_run(db, run_id)
+        return {
+            **_serialize_run(run),
+            "report_generated_at": _iso_utc(_utc_now()),
+            "evaluation_method": "fixture-scoped deterministic rules",
+            "limitations": REPORT_LIMITATIONS,
+            "defense_config": {
+                "config_id": run.defense_config_id,
+                "mode": run.defense_mode,
+                "description": ("Demo defense enabled" if run.defense_mode == "on" else "No demo defense enabled"),
+            },
+        }
