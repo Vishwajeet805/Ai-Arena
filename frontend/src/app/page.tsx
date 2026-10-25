@@ -97,7 +97,7 @@ export default function LandingPage() {
             <a href="#overview" aria-current="page">Overview</a>
             <a href="/arena#configure">New evaluation</a>
             <a href="/arena#history">History</a>
-            <a href="#methodology">Methodology</a>
+            <a href="/methodology">Methodology</a>
           </nav>
           <a className="landing-nav-cta" href="/arena">Enter the Lab <ArrowUpRight size={15} aria-hidden="true" /></a>
         </header>
@@ -117,7 +117,7 @@ export default function LandingPage() {
               <p className="landing-intro">AI Arena evaluates AI systems against adversarial test cases, then compares baseline and defended outcomes with evidence you can inspect.</p>
               <div className="landing-actions">
                 <a className="landing-primary-action" href="/arena">Enter the Lab <ArrowRight size={17} aria-hidden="true" /></a>
-                <a className="landing-secondary-action" href="#methodology">Explore the Methodology <ArrowDown size={15} aria-hidden="true" /></a>
+                <a className="landing-secondary-action" href="/methodology">Explore the Methodology <ArrowDown size={15} aria-hidden="true" /></a>
               </div>
               <p className="landing-hero-note"><Check size={14} aria-hidden="true" /> Repeatable scenarios <span /> Results from the API</p>
             </div>
@@ -157,7 +157,7 @@ export default function LandingPage() {
               <h2 id="methodology-title">Measure behavior. Don’t mistake it for a certification.</h2>
               <p>The synthetic demo uses deterministic fixtures. Configured model runs depend on backend settings and are not sandboxed. Results describe the tested cases; they do not establish real-world robustness or production security. Only evaluate targets you are authorized to test.</p>
             </div>
-            <a className="landing-method-link" href="/arena#methodology">Read evaluation notes <ArrowUpRight size={15} aria-hidden="true" /></a>
+            <a className="landing-method-link" href="/methodology">Read evaluation notes <ArrowUpRight size={15} aria-hidden="true" /></a>
           </section>
         </div>
 
