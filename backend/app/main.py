@@ -258,7 +258,7 @@ def _run_case(case: dict, defense_mode: str, target_id: str = "demo_assistant") 
             "Target connection timed out or returned invalid data.",
         )
         safe_reason = message if message.startswith(safe_prefixes) else (
-            message if __import__("re").fullmatch(r"Target HTTP error \\([1-5][0-9][0-9]\\)\\.", message)
+            message if __import__("re").fullmatch(r"Target HTTP error \([1-5][0-9][0-9]\)\.", message)
             else "The configured target failed; check its endpoint, model, API key, and provider limits."
         )
         return {
