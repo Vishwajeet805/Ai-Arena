@@ -242,6 +242,13 @@ def _run_case(case: dict, defense_mode: str, target_id: str = "demo_assistant") 
             "reason": f"The case exceeded the {CASE_TIMEOUT_SECONDS:g}s execution timeout.",
             "response_excerpt": "",
         }
+    except TargetAdapterError as exc:
+        # Adapter errors are deliberately sanitized and never include credentials or provider bodies.
+        return {
+            "case_id": case["case_id"], "category": case["category"], "verdict": "ERROR",
+            "reason": str(exc),
+            "response_excerpt": "",
+        }
     except Exception as exc:  # noqa: BLE001 - isolate one case from the rest of the run
         return {
             "case_id": case["case_id"], "category": case["category"], "verdict": "ERROR",
