@@ -309,13 +309,11 @@ export default function Home() {
     <main className="shell">
       <a className="skip-link" href="#main-content">Skip to main content</a>
       <nav className="nav" aria-label="Main">
-        <a className="brand-lockup" href="#top" aria-label="AI Arena home">
         <div className="brand-mark" aria-hidden="true">A/</div>
         <div>
           <div className="brand-name">ARENA / AI SECURITY</div>
           <div className="brand-sub">LOGUNIFYERS · RESEARCH WORKSPACE</div>
         </div>
-        </a>
         <div className="nav-links" aria-label="Page sections">
           <a href="#configure">Configure</a><a href="#workflow">Workflow</a><a href="#evidence">Evidence</a><a href="#history">History</a>
         </div>
@@ -325,10 +323,6 @@ export default function Home() {
       </nav>
 
       <div id="main-content">
-        <div id="top" className="workspace-meta">
-          <div className="workspace-breadcrumb"><span className="breadcrumb-mark" /> SECURITY LAB <span aria-hidden="true">/</span> EXPERIMENT WORKSPACE</div>
-          <div className="meta-tags"><span>PROTOTYPE 01</span><span>FIXTURE-BASED</span><span>V1.0</span></div>
-        </div>
         <section className="hero">
           <div className="hero-copy">
             <p className="eyebrow">AI APPLICATION SECURITY / WORKSPACE 01</p>
@@ -336,19 +330,17 @@ export default function Home() {
             <p className="intro">A focused red-team workspace for running controlled security scenarios, reviewing model behavior, and comparing defenses with traceable evidence.</p>
           </div>
           <aside className="hero-aside" aria-label="Workspace summary">
-            <div className="protocol-topline"><span className="protocol-index">01</span><span className="aside-label">Evaluation protocol</span></div>
-            <strong>Controlled.<br />Repeatable.<br />Auditable.</strong>
-            <p>Curated synthetic fixtures, case-matched comparisons, and exportable evidence.</p>
-            <div className="protocol-stats"><span><b>04</b><small>Verdict states</small></span><span><b>02</b><small>Run modes</small></span></div>
+            <span className="aside-label">Evaluation protocol</span>
+            <strong>Controlled. Repeatable. Auditable.</strong>
+            <p>Curated synthetic fixtures · Case-matched comparisons · Exportable reports</p>
           </aside>
         </section>
         <div className="safety-strip" role="note">
-          <span className="safety-icon" aria-hidden="true">!</span>
-          <div><strong>Scope &amp; safety boundaries</strong><p>The synthetic assistant is deterministic. Configured model runs execute in-process and are not sandboxed. Use only authorized targets and synthetic fixtures; these results are not a production security certification.</p></div>
-          <a href="#methodology" className="safety-link">Read methodology <span aria-hidden="true">↗</span></a>
+          <span className="safety-icon" aria-hidden="true">i</span>
+          <div><strong>Prototype safety note</strong>The synthetic assistant is deterministic. Configured model runs execute in-process and are not sandboxed; test only targets you are authorized to evaluate, using synthetic fixtures.</div>
         </div>
 
-        <section id="configure" className="card controls section-block" aria-labelledby="run-config-title">
+        <section id="configure" className="card controls" aria-labelledby="run-config-title">
           <div className="section-heading">
             <div><p className="eyebrow">01 / SETUP</p><h2 id="run-config-title">Configure an evaluation</h2><p className="section-kicker">Choose a target, suite, and defense posture before launching your test.</p></div>
             <span className={`pill ${runStatus === "failed" ? "pill-error" : ""}`} role="status" aria-live="polite">{busyLabel}</span>
@@ -384,17 +376,17 @@ export default function Home() {
           {exportNotice && <p className="success-message" role="status">{exportNotice}</p>}
         </section>
 
-        <section id="workflow" className="workflow-section section-block" aria-label="Run workflow">
-          <div className="section-heading"><div><p className="eyebrow">02 / THE EXPERIMENT</p><h2>One suite. Two postures. Clear evidence.</h2><p className="section-kicker">Run the same curated cases with the defense off and on, then compare matching case IDs.</p></div><span className="section-index">WORKFLOW / 03 STEPS</span></div>
+        <section id="workflow" className="workflow-section" aria-label="Run workflow">
+          <div className="section-heading"><div><p className="eyebrow">02 / WORKFLOW</p><h2>From test to comparison</h2><p className="section-kicker">Keep baseline and defended runs separate, then compare matching cases.</p></div></div>
           <div className="grid summary-grid">
-          <article className={`card workflow-card ${baseline ? "is-complete" : ""}`}><div className="workflow-card-top"><div className="number">01</div><span className="workflow-state">{baseline ? "CAPTURED" : "AWAITING RUN"}</span></div><h2>Baseline run</h2><p>Establish the unprotected behavior of your selected synthetic suite.</p>{baseline ? <><p className="pill">{baseline.status} · {baseline.results.length} cases</p><small>RUN / {baseline.run_id.slice(0, 8)}…</small></> : <p className="muted-copy">Choose defense mode Off, then start a run.</p>}</article>
-          <article className={`card workflow-card ${defended ? "is-complete" : ""}`}><div className="workflow-card-top"><div className="number">02</div><span className="workflow-state">{defended ? "CAPTURED" : "AWAITING RUN"}</span></div><h2>Defended run</h2><p>Repeat the identical suite with the demo authorization defense enabled.</p>{defended ? <><p className="pill">{defended.status} · {defended.results.length} cases</p><small>RUN / {defended.run_id.slice(0, 8)}…</small></> : <p className="muted-copy">Choose defense mode On, then start a second run.</p>}</article>
-          <article className={`card workflow-card ${comparison ? "is-complete" : ""}`}><div className="workflow-card-top"><div className="number">03</div><span className="workflow-state">{comparison ? "READY" : "NEXT STEP"}</span></div><h2>Compare results</h2><p>Line up outcomes by case ID and inspect verdict changes and evidence.</p>{comparison ? <p className="pill">Comparison ready · {comparison.items.length} cases</p> : <p className="muted-copy">Comparison unlocks once both run modes are captured.</p>}</article>
+          <article className="card"><div className="number">01</div><h2>Baseline run</h2><p>Run the selected suite with defenses disabled.</p>{baseline ? <><p className="pill">{baseline.status} · {baseline.results.length} cases</p><small>Run ID: {baseline.run_id.slice(0, 8)}…</small></> : <p className="muted-copy">No baseline run selected in this session.</p>}</article>
+          <article className="card"><div className="number">02</div><h2>Defended run</h2><p>Run the same suite with demo defenses enabled.</p>{defended ? <><p className="pill">{defended.status} · {defended.results.length} cases</p><small>Run ID: {defended.run_id.slice(0, 8)}…</small></> : <p className="muted-copy">No defended run selected in this session.</p>}</article>
+          <article className="card"><div className="number">03</div><h2>Compare results</h2><p>Compare results matched by case ID.</p>{comparison ? <p className="pill">Comparison ready · {comparison.items.length} cases</p> : <p className="muted-copy">Run once with defense off and once with defense on, then compare.</p>}</article>
           </div>
         </section>
 
-        {comparison && <section className="card results comparison-section section-block" aria-labelledby="comparison-title">
-          <div className="section-heading"><div><p className="eyebrow">03 / OUTCOME ANALYSIS</p><h2 id="comparison-title">Baseline vs. defended</h2><p className="section-kicker">Observed outcomes from two compatible runs; inspect case evidence before drawing conclusions.</p></div><button onClick={exportComparison}>Export comparison JSON <span aria-hidden="true">↗</span></button></div>
+        {comparison && <section className="card results" aria-labelledby="comparison-title">
+          <div className="section-heading"><h2 id="comparison-title">Baseline vs. defended</h2><button onClick={exportComparison}>Export comparison JSON</button></div>
           <div className="metrics-grid">
             <div><strong>Baseline attack success rate</strong><p className="metric-value">{formatAsr(comparison.baseline_asr)}</p><small>Excluded verdicts: {comparison.baseline_excluded_count}</small></div>
             <div><strong>Defended attack success rate</strong><p className="metric-value">{formatAsr(comparison.defended_asr)}</p><small>Excluded verdicts: {comparison.defended_excluded_count}</small></div>
@@ -410,8 +402,8 @@ export default function Home() {
           <div className="table-scroll"><table><caption>Verdicts, outcome status, and evidence aligned by exact case ID</caption><thead><tr><th scope="col">Case ID</th><th scope="col">Baseline</th><th scope="col">Defended</th><th scope="col">Change</th><th scope="col">Evidence / evaluator notes</th></tr></thead><tbody>{comparison.items.map((item) => <tr key={item.case_id}><th scope="row">{item.case_id}</th><td><span className={verdictClass(item.baseline_verdict)}>{item.baseline_verdict}</span><small>{item.baseline_reason}<br />Evidence: {item.baseline_evidence || "—"}</small></td><td><span className={verdictClass(item.defended_verdict)}>{item.defended_verdict}</span><small>{item.defended_reason}<br />Evidence: {item.defended_evidence || "—"}</small></td><td>{item.status}</td><td>{item.status === "needs_review" ? "At least one outcome is indeterminate/technical error; review manually." : item.status === "changed" ? "Verdict changed between runs." : "Verdict unchanged between runs."}</td></tr>)}</tbody></table></div>
         </section>}
 
-        <section id="evidence" className="card results evidence-section section-block" aria-labelledby="evidence-title">
-          <div className="section-heading"><div><p className="eyebrow">04 / TRACE &amp; INSPECT</p><h2 id="evidence-title">Case-level evidence</h2><p className="section-kicker">Open any case to inspect its verdict, evaluator rationale, severity, and response excerpt.</p></div><span className="section-index">EVIDENCE / PER CASE</span></div>
+        <section id="evidence" className="card results" aria-labelledby="evidence-title">
+          <div className="section-heading"><div><p className="eyebrow">04 / TRACE</p><h2 id="evidence-title">Case-level evidence</h2><p className="muted-copy">Verdicts, categories, evaluator reasons, and response excerpts from API run results.</p></div></div>
           {!latestRun && <p className="empty-state">No run evidence yet. Configure a run above and select <strong>Start run</strong>.</p>}
           {latestRun && <div className="evidence-run">
             <div className="evidence-run-header"><div><h3>{latestRun.defense_mode === "off" ? "Baseline" : "Defended"} result</h3><small>Run ID: {latestRun.run_id}</small></div><div className="button-row"><button className="button-secondary" onClick={() => void exportRunReport(latestRun)}>Export run report JSON</button><button className="button-secondary" onClick={() => void exportRunCsv(latestRun)}>Export run report CSV</button></div></div>
@@ -421,17 +413,12 @@ export default function Home() {
           </div>}
         </section>
 
-        <section id="history" className="card results history-section section-block" aria-labelledby="history-title">
-          <div className="section-heading"><div><p className="eyebrow">05 / RUN LEDGER</p><h2 id="history-title">Recent runs</h2><p className="section-kicker">A traceable record of your latest 10 API-persisted experiments.</p></div><button className="button-secondary" onClick={loadHistory} disabled={historyLoading || apiStatus !== "connected"}>{historyLoading ? "Loading…" : "Refresh history"}</button></div>
+        <section id="history" className="card results" aria-labelledby="history-title">
+          <div className="section-heading"><div><p className="eyebrow">05 / HISTORY</p><h2 id="history-title">Recent runs</h2><p className="muted-copy">Latest 10 runs saved by the API.</p></div><button className="button-secondary" onClick={loadHistory} disabled={historyLoading || apiStatus !== "connected"}>{historyLoading ? "Loading…" : "Refresh history"}</button></div>
           {historyError && <div role="alert" className="error-text">Could not load history: {historyError}</div>}
           {historyLoading && <p className="muted-copy" role="status">Loading saved runs…</p>}
           {!historyLoading && !historyError && history.length === 0 && <p className="empty-state">No saved runs found yet. Start a run to populate history.</p>}
           <div className="table-scroll"><table><caption>Most recent API-persisted runs</caption><thead><tr><th scope="col">Mode</th><th scope="col">Status</th><th scope="col">Suite</th><th scope="col">Created</th><th scope="col">Run ID</th></tr></thead><tbody>{history.map((run) => <tr key={run.run_id}><th scope="row">{run.defense_mode === "off" ? "Baseline" : "Defended"}</th><td>{run.status}</td><td>{run.suite_id} v{run.suite_version}</td><td>{run.created_at ? new Date(run.created_at).toLocaleString() : "Not provided"}</td><td><button className="link-button" onClick={() => setLatestRun(run)} title="Show this run's evidence">{run.run_id.slice(0, 8)}…</button></td></tr>)}</tbody></table></div>
-        </section>
-
-        <section id="methodology" className="methodology-strip" aria-labelledby="methodology-title">
-          <div><p className="eyebrow">METHOD NOTES</p><h2 id="methodology-title">Evidence over assumptions.</h2><p>AI Arena is a hackathon prototype using synthetic fixtures and a deterministic rule-based evaluator. PASS / FAIL outcomes feed the current ASR calculation; NEEDS_REVIEW and ERROR remain visible but are excluded. Results do not establish real-world model robustness or production-grade isolation.</p></div>
-          <a href="https://github.com/Vishwajeet805/Ai-Arena/blob/feat/editorial-arena-redesign/docs/04_DATA_AND_EVALUATION.md" target="_blank" rel="noreferrer">Evaluation notes <span aria-hidden="true">↗</span></a>
         </section>
       </div>
 
