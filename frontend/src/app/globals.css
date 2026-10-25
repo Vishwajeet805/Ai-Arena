@@ -162,3 +162,11 @@ footer span { font:500 11px "DM Mono",monospace; letter-spacing:.04em; }
   footer { flex-direction:column; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; transition-duration:.01ms !important; } }
+
+
+.workflow-section { margin: 28px 0 32px; }
+.workflow-section > .section-heading { margin: 0 0 16px; }
+.workflow-section .summary-grid { margin: 0; }
+@media (min-width: 901px) {
+  .workflow-section .summary-grid .card { min-height: 205px; }
+}
