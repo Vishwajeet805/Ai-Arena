@@ -97,3 +97,48 @@ def test_comparison_includes_evidence_and_change_classification():
             assert isinstance(item["baseline_evidence"], str)
             assert isinstance(item["defended_evidence"], str)
         assert all(item["status"] == "changed" for item in items)
+
+
+
+def test_comparison_rejects_different_persisted_target_versions():
+    with TestClient(app) as client:
+        payload = {"target_id": "demo_assistant", "suite_id": "baseline"}
+        baseline = client.post("/api/v1/runs", json={**payload, "defense_mode": "off"}).json()
+        defended = client.post("/api/v1/runs", json={**payload, "defense_mode": "on"}).json()
+
+        import app.main as main
+        with main.SessionLocal() as db:
+            record = main._load_run(db, defended["run_id"])
+            record.target_version = "different-target-build"
+            db.commit()
+
+        response = client.post("/api/v1/comparisons", json={
+            "baseline_run_id": baseline["run_id"],
+            "defended_run_id": defended["run_id"],
+        })
+        assert response.status_code == 409
+        assert "incompatible" in response.json()["detail"]
+
+
+def test_comparison_classifies_error_cases_as_needs_review():
+    with TestClient(app) as client:
+        payload = {"target_id": "demo_assistant", "suite_id": "baseline"}
+        baseline = client.post("/api/v1/runs", json={**payload, "defense_mode": "off"}).json()
+        defended = client.post("/api/v1/runs", json={**payload, "defense_mode": "on"}).json()
+
+        import app.main as main
+        with main.SessionLocal() as db:
+            record = main._load_run(db, defended["run_id"])
+            record.results[0].verdict = "ERROR"
+            record.results[0].reason = "Synthetic test error"
+            record.results[0].response_excerpt = ""
+            db.commit()
+
+        response = client.post("/api/v1/comparisons", json={
+            "baseline_run_id": baseline["run_id"],
+            "defended_run_id": defended["run_id"],
+        })
+        assert response.status_code == 200
+        first = response.json()["items"][0]
+        assert first["status"] == "needs_review"
+        assert first["defended_verdict"] == "ERROR"
