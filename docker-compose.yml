@@ -22,18 +22,26 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://arena:local_dev_change_me@db:5432/arena}
       CORS_ORIGINS: http://localhost:3000
+      RUNNER_URL: http://runner:8081
+    networks:
+      - default
+      - runner_internal
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
+      runner:
+        condition: service_started
     restart: unless-stopped
 
   runner:
     build:
       context: ./backend/runner
-    image: ai-arena-runner:phase4
-    network_mode: none
+    image: ai-arena-runner:phase7c
+    command: ["/runner/runner.py", "--serve"]
+    networks:
+      - runner_internal
     read_only: true
     cap_drop:
       - ALL
@@ -44,8 +52,8 @@ services:
     cpus: 0.5
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m
-    # No Docker socket, host mounts, credentials, or published ports.
-    profiles: ["runner"]
+    # Internal-only network: no internet egress, Docker socket, host mounts,
+    # credentials, or published ports. API reaches it on runner_internal.
 
   web:
     build:
@@ -57,6 +65,10 @@ services:
     depends_on:
       - api
     restart: unless-stopped
+
+networks:
+  runner_internal:
+    internal: true
 
 volumes:
   arena_postgres_data:
