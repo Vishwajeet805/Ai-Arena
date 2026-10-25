@@ -25,3 +25,4 @@ Q-003 Exact frontend package versions and package manager: owner to propose, the
 
 ## Changes
 2026-10-18 v1.0 Initial starter kit; no source code implemented by this document package.
+2026-10-23 Phase 6: per-case timeout/ERROR isolation; dashboard totals, failures-by-category and CSV export computed client-side from existing API fields. No contract, enum or endpoint changes.

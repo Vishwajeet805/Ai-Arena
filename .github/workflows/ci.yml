@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read
@@ -42,3 +41,143 @@ jobs:
       - run: npm install
       - run: npm run typecheck
       - run: npm run build
+
+  docker-smoke:
+    name: Docker Compose runner smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build and start Compose stack
+        run: |
+          docker compose up --build -d
+          docker compose ps
+      - name: Wait for API readiness
+        run: |
+          python - <<'PY'
+          import time
+          import urllib.error
+          import urllib.request
+
+          url = "http://127.0.0.1:8000/api/v1/health"
+          deadline = time.time() + 90
+          last_error = None
+          while time.time() < deadline:
+              try:
+                  with urllib.request.urlopen(url, timeout=3) as response:
+                      body = response.read().decode()
+                      print("health response:", body)
+                      if response.status == 200 and '"status":"ok"' in body.replace(" ", ""):
+                          print("API is ready")
+                          break
+                      last_error = f"unexpected response: HTTP {response.status} {body}"
+              except Exception as exc:
+                  last_error = repr(exc)
+              print("API not ready yet:", last_error)
+              time.sleep(3)
+          else:
+              print("API failed readiness check:", last_error)
+              raise SystemExit(1)
+          PY
+      - name: Show Compose status and API/runner logs
+        if: always()
+        run: |
+          docker compose ps
+          docker compose logs --tail=120 runner api db
+      - name: Run API-to-runner smoke test
+        run: python scripts/smoke_test.py
+      - name: Verify run persistence across API and PostgreSQL restart
+        run: |
+          python - <<'PY'
+          import json
+          import time
+          import urllib.error
+          import urllib.request
+
+          base = "http://127.0.0.1:8000"
+          def request(path, method="GET", payload=None, timeout=30):
+              data = None if payload is None else json.dumps(payload).encode()
+              headers = {"Content-Type": "application/json"} if data is not None else {}
+              req = urllib.request.Request(base + path, data=data, headers=headers, method=method)
+              with urllib.request.urlopen(req, timeout=timeout) as response:
+                  return json.loads(response.read())
+
+          created = request("/api/v1/runs", "POST", {
+              "target_id": "demo_assistant", "suite_id": "baseline", "defense_mode": "off"
+          }, timeout=60)
+          run_id = created["run_id"]
+          expected_cases = [(r["case_id"], r["verdict"], r["reason"], r["response_excerpt"]) for r in created["results"]]
+          assert created["status"] == "completed" and expected_cases
+
+          print("Restarting PostgreSQL; persisted run:", run_id)
+          import subprocess
+          subprocess.run(["docker", "compose", "restart", "db"], check=True)
+          deadline = time.time() + 90
+          db_ready = False
+          while time.time() < deadline:
+              probe = subprocess.run(["docker", "compose", "exec", "-T", "db", "pg_isready", "-U", "arena", "-d", "arena"], capture_output=True, text=True)
+              if probe.returncode == 0:
+                  db_ready = True
+                  break
+              time.sleep(3)
+          if not db_ready:
+              raise RuntimeError("PostgreSQL did not become ready after restart")
+          subprocess.run(["docker", "compose", "restart", "api"], check=True)
+
+          deadline = time.time() + 120
+          last_error = None
+          while time.time() < deadline:
+              try:
+                  health = request("/api/v1/health", timeout=3)
+                  if health == {"status": "ok"}:
+                      break
+              except Exception as exc:
+                  last_error = repr(exc)
+              time.sleep(3)
+          else:
+              raise RuntimeError(f"API did not recover after DB/API restart: {last_error}")
+
+          detail = request(f"/api/v1/runs/{run_id}")
+          report = request(f"/api/v1/runs/{run_id}/report")
+          history = request("/api/v1/runs?limit=100")
+          def rows(run):
+              return [(r["case_id"], r["verdict"], r["reason"], r["response_excerpt"]) for r in run["results"]]
+          assert detail["run_id"] == run_id and rows(detail) == expected_cases, "Run detail changed after restart"
+          assert report["run_id"] == run_id and rows(report) == expected_cases, "Report differs after restart"
+          assert any(item["run_id"] == run_id for item in history["items"]), "Run missing from history after restart"
+          print(f"PASS: {len(expected_cases)} case outcomes survived DB/API restart and match report/history")
+          PY
+      - name: Verify runner-down behavior returns ERROR verdicts
+        run: |
+          docker compose stop runner
+          python - <<'PY'
+          import json
+          import urllib.request
+
+          body = json.dumps({
+              "target_id": "demo_assistant",
+              "suite_id": "baseline",
+              "defense_mode": "off",
+          }).encode()
+          request = urllib.request.Request(
+              "http://127.0.0.1:8000/api/v1/runs",
+              data=body,
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
+          with urllib.request.urlopen(request, timeout=60) as response:
+              run = json.loads(response.read())
+          verdicts = [case["verdict"] for case in run["results"]]
+          print("run status:", run["status"])
+          print("runner-down verdicts:", verdicts)
+          assert run["status"] == "completed", "API did not complete the run gracefully"
+          assert verdicts and all(v == "ERROR" for v in verdicts), "Runner-down cases must all be ERROR"
+          PY
+      - name: Restart runner after failure-mode check
+        if: always()
+        run: docker compose start runner
+      - name: Clean up Compose stack
+        if: always()
+        run: docker compose down -v

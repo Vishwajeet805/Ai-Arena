@@ -40,7 +40,7 @@ It is designed to make security checks **repeatable, inspectable, and easier to 
 3. Run once with **Defense mode: Off**.
 4. Run again with **Defense mode: On**.
 5. Compare the baseline and defended runs; inspect case verdicts and run history.
-6. Export the comparison or run report as JSON.
+6. Export the comparison or run report as JSON (run report also as CSV).
 
 The hosted flow has been manually smoke-tested for suite loading, baseline/defended runs, history, comparison and JSON export. Render's free service may need a short wake-up period after inactivity.
 
@@ -63,6 +63,7 @@ Each run records its target, suite, defense mode, evaluator version, status and 
 - **PASS / FAIL:** decisive outcomes used by the current Attack Success Rate calculation.
 - **NEEDS_REVIEW / ERROR:** excluded from the decisive ASR denominator and surfaced separately, rather than silently counted as success or failure.
 - **Case evidence:** category, verdict, reason and response excerpt are shown for review.
+- **Per-case failure handling:** a case that crashes or exceeds `CASE_TIMEOUT_SECONDS` (default 10) is recorded as `ERROR`; this wait timeout is not hard cancellation of in-process target calls.
 
 The evaluator is deterministic rule-based demo logic. These results demonstrate the workflow and data model; they are **not** a claim of measured security against real LLMs.
 
@@ -81,11 +82,24 @@ A security demo is more useful when it can show the same attack before and after
 This is a **hackathon MVP / prototype**, not a production certification tool.
 
 - The demo target is synthetic and deterministic; it does not call a live LLM, external tool or third-party application.
-- The API currently evaluates runs in-process. The separate constrained runner image exists, but API dispatch to it is **not wired up**. Therefore, hosted API runs must **not** be described as sandboxed or isolated.
+- Local Docker Compose synthetic fixture runs dispatch to a separate constrained runner over an internal-only network; the API validates runner output and maps failures/timeouts to ERROR. Local subprocess fallback is development-only and is not container isolation. The hosted Render deployment has not been runtime-verified with this runner, so hosted runs must not be described as sandboxed or isolated.
 - The runner is a restricted fixture protocol, not an arbitrary-code execution engine. Docker restrictions are defense-in-depth, not a guarantee of perfect isolation.
 - The curated suite currently contains four synthetic cases. Results do not establish broad coverage or real-world model robustness.
 
 Use only fixtures and systems you own or are explicitly authorized to test. Do not submit secrets, production records or third-party targets.
+
+### Optional real AI target (Phase 7A)
+
+The dashboard offers **Configured OpenAI-compatible model** in addition to the synthetic demo. To use it, configure these variables in the **backend/API environment only**:
+
+- `ARENA_LLM_BASE_URL`: provider's HTTPS API base URL, for example `https://api.openai.com/v1`.
+- `ARENA_LLM_MODEL`: model identifier enabled for your account.
+- `ARENA_LLM_API_KEY`: provider key, supplied through the hosting provider's secret/environment settings; do not commit it or expose it to the browser.
+- `ARENA_LLM_TIMEOUT_SECONDS`: request timeout from greater than 0 up to 60 seconds (default 8).
+
+The adapter sends only the curated synthetic fixture prompt and synthetic retrieved text to the configured endpoint. Use only a model/account and endpoint you are authorized to test. The endpoint must use HTTPS; responses are size-bounded and provider errors are sanitized. If the target is not configured, the run records per-case `ERROR` outcomes rather than silently falling back to the synthetic assistant. The rule-based evaluator remains fixture-scoped and may return `NEEDS_REVIEW`; this is not a general-purpose LLM security guarantee.
+
+For local use, copy the variable names from `.env.example` into your ignored local `.env` file and supply a valid key locally. For Render, set them in the API service's environment settings. Never set these variables on the Vercel frontend.
 
 ## Architecture
 
@@ -114,6 +128,7 @@ Interactive schema: [Swagger UI](https://ai-arena-pa82.onrender.com/docs)
 |---|---|---|
 | GET | `/api/v1/health` | Health check |
 | GET | `/api/v1/suites` | List available suites |
+| GET | `/api/v1/suites/{suite_id}/cases` | Review case prompts, expected behavior, severity rationale, evaluation rules and evaluator metadata (synthetic canary values omitted) |
 | POST | `/api/v1/runs` | Execute a demo evaluation |
 | GET | `/api/v1/runs?limit=20` | Browse persisted run history |
 | GET | `/api/v1/runs/{run_id}` | Retrieve a run |
@@ -136,6 +151,11 @@ Then open the dashboard at `http://localhost:3000`, API health at `http://localh
 
 Stop with `docker compose down`. Use `docker compose down -v` only when you intend to delete the local database volume.
 
+### Smoke test (API running on :8000)
+```bash
+python scripts/smoke_test.py
+```
+
 ### Backend development
 ```powershell
 cd backend
@@ -154,10 +174,16 @@ npm run dev
 ```
 
 ### Optional constrained runner
-The runner is opt-in and is not launched by default:
+Docker Compose starts the restricted fixture runner alongside the API. The API dispatches synthetic fixture IDs to it over the internal-only Compose network. For an API smoke check, run `python scripts/smoke_test.py` after `docker compose up --build`.
 ```sh
-docker compose --profile runner build runner
-printf '%s' '{"case_ids":["BASE-PINJ-001"],"defense_mode":"on"}' | docker compose --profile runner run --rm -T runner
+# Inspect runner service health and logs
+docker compose ps runner
+docker compose logs --tail=50 runner
+
+# Verify API marks runner outages as ERROR: stop runner, then create a run via the API.
+docker compose stop runner
+# Restore after the check
+docker compose start runner
 ```
 Review the runner configuration and verify restrictions on your own Docker host before treating them as runtime evidence.
 
