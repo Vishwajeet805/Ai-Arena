@@ -25,6 +25,8 @@ def test_create_run_persists_all_case_results_and_contract_shape(client):
     assert run["suite_version"] == BASELINE_SUITE_VERSION
     assert run["defense_mode"] == "off"
     assert run["evaluator_version"] == EVALUATOR_VERSION
+    assert run["target_version"] == "synthetic-demo-assistant-1.0.0"
+    assert run["defense_config_id"] == "no-defense-v1"
     assert run["evaluator_type"] == "fixture-scoped deterministic rules"
     assert run["evaluation_source"] == "synthetic_demo_output"
     assert all("severity" in item and "severity_rationale" in item for item in run["results"])
@@ -51,7 +53,14 @@ def test_unknown_run_is_404_and_json_report_matches_run(client):
     fetched = client.get(f"/api/v1/runs/{created['run_id']}")
     report = client.get(f"/api/v1/runs/{created['run_id']}/report")
     assert fetched.status_code == 200 and fetched.json() == created
-    assert report.status_code == 200 and report.json() == created
+    assert report.status_code == 200
+    audit = report.json()
+    assert audit["run_id"] == created["run_id"]
+    assert audit["report_generated_at"].endswith("Z")
+    assert audit["evaluation_method"] == "fixture-scoped deterministic rules"
+    assert audit["limitations"]
+    assert audit["defense_config"]["config_id"] == created["defense_config_id"]
+    assert audit["target_version"] == created["target_version"]
     assert client.get("/api/v1/runs/no-such-run").status_code == 404
 
 
@@ -80,6 +89,14 @@ def test_comparison_returns_matching_case_outcomes_and_attack_success_rate(clien
     assert body["baseline_asr"] == 1.0
     assert body["defended_asr"] == 0.0
     assert len(body["items"]) == len(BASELINE_CASES)
+    assert body["generated_at"].endswith("Z")
+    assert body["evaluation_method"] == "fixture-scoped deterministic rules"
+    assert body["limitations"]
+    assert body["baseline_metadata"]["run_id"] == off["run_id"]
+    assert body["defended_metadata"]["run_id"] == on["run_id"]
+    assert body["baseline_metadata"]["defense_config_id"] == "no-defense-v1"
+    assert body["defended_metadata"]["defense_config_id"] == "demo-defense-v1"
+    assert all(item["status"] in {"changed", "unchanged", "needs_review"} for item in body["items"])
 
 
 def test_missing_comparison_runs_return_404(client):
