@@ -8,7 +8,7 @@ const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono"
 
 export const metadata: Metadata = {
   title: "AI Arena — Break it. Measure it. Defend it.",
-  description: "Evaluate AI systems against adversarial test cases and compare baseline and defended outcomes with inspectable evidence.",
+  description: "A focused AI security evaluation workspace for testing adversarial cases and comparing baseline and defended outcomes with inspectable evidence.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
