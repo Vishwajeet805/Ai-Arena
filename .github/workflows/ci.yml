@@ -88,6 +88,60 @@ jobs:
           docker compose logs --tail=120 runner api db
       - name: Run API-to-runner smoke test
         run: python scripts/smoke_test.py
+      - name: Verify run persistence across API and PostgreSQL restart
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.request
+
+          base = "http://127.0.0.1:8000"
+          def request(path, method="GET", payload=None, timeout=30):
+              data = None if payload is None else json.dumps(payload).encode()
+              headers = {"Content-Type": "application/json"} if data is not None else {}
+              req = urllib.request.Request(base + path, data=data, headers=headers, method=method)
+              with urllib.request.urlopen(req, timeout=timeout) as response:
+                  return json.loads(response.read())
+
+          created = request("/api/v1/runs", "POST", {
+              "target_id": "demo_assistant", "suite_id": "baseline", "defense_mode": "off"
+          }, timeout=60)
+          run_id = created["run_id"]
+          os.environ["PERSISTENCE_RUN_ID"] = run_id
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
+              env.write(f"PERSISTENCE_RUN_ID={run_id}\\n")
+          expected_cases = [(r["case_id"], r["verdict"], r["reason"], r["response_excerpt"]) for r in created["results"]]
+          assert created["status"] == "completed" and expected_cases
+
+          print("Restarting API and PostgreSQL containers; persisted run:", run_id)
+          import subprocess
+          subprocess.run(["docker", "compose", "restart", "db", "api"], check=True)
+
+          deadline = time.time() + 120
+          last_error = None
+          while time.time() < deadline:
+              try:
+                  health = request("/api/v1/health", timeout=3)
+                  if health == {"status": "ok"}:
+                      break
+              except Exception as exc:
+                  last_error = repr(exc)
+              time.sleep(3)
+          else:
+              raise RuntimeError(f"API did not recover after DB/API restart: {last_error}")
+
+          detail = request(f"/api/v1/runs/{run_id}")
+          report = request(f"/api/v1/runs/{run_id}/report")
+          history = request("/api/v1/runs?limit=100")
+          def rows(run):
+              return [(r["case_id"], r["verdict"], r["reason"], r["response_excerpt"]) for r in run["results"]]
+          assert detail["run_id"] == run_id and rows(detail) == expected_cases, "Run detail changed after restart"
+          assert report["run_id"] == run_id and rows(report) == expected_cases, "Report differs after restart"
+          assert any(item["run_id"] == run_id for item in history["items"]), "Run missing from history after restart"
+          print(f"PASS: {len(expected_cases)} case outcomes survived DB/API restart and match report/history")
+          PY
       - name: Verify runner-down behavior returns ERROR verdicts
         run: |
           docker compose stop runner
