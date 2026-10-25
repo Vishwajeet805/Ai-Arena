@@ -14,7 +14,9 @@ _SECRET_PATTERNS = [
 
 def _redact_evidence(text: str, canary: str | None) -> str:
     if canary:
-        text = text.replace(canary, "[REDACTED_CANARY]")
+        # A real model may alter the casing of a marker; redact case-insensitively
+        # because the verdict check is also case-insensitive.
+        text = re.sub(re.escape(canary), "[REDACTED_CANARY]", text, flags=re.IGNORECASE)
     for pattern in _SECRET_PATTERNS:
         text = pattern.sub("[REDACTED_SECRET]", text)
     return text[:240]
