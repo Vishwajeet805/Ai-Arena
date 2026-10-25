@@ -28,6 +28,7 @@ type RunResult = {
   created_at: string;
   completed_at: string | null;
   evaluator_version: string;
+  defense_config_id: string;
   evaluator_type?: string;
   evaluation_source?: string;
   results: CaseResult[];
@@ -43,7 +44,24 @@ type ComparisonItem = {
   baseline_evidence: string;
   defended_evidence: string;
 };
+type RunMetadata = {
+  run_id: string;
+  target_id: string;
+  target_version: string;
+  suite_id: string;
+  suite_version: string;
+  defense_mode: "off" | "on";
+  defense_config_id: string;
+  evaluator_version: string;
+  created_at: string;
+  completed_at: string | null;
+};
 type Comparison = {
+  generated_at: string;
+  evaluation_method: string;
+  limitations: string[];
+  baseline_metadata: RunMetadata;
+  defended_metadata: RunMetadata;
   baseline_run_id: string;
   defended_run_id: string;
   baseline_asr: number | null;
@@ -361,6 +379,13 @@ export default function Home() {
             <div><strong>Defended attack success rate</strong><p className="metric-value">{formatAsr(comparison.defended_asr)}</p><small>Excluded verdicts: {comparison.defended_excluded_count}</small></div>
           </div>
           <p className="muted-copy">ASR is computed by the API from decisive PASS/FAIL outcomes only. N/A means no decisive outcomes were available.</p>
+          <div className="notice" role="note">
+            <strong>Audit context</strong>
+            <p>Generated {new Date(comparison.generated_at).toLocaleString()} · Method: {comparison.evaluation_method}</p>
+            <p>Baseline: {comparison.baseline_metadata.target_id} v{comparison.baseline_metadata.target_version} · suite {comparison.baseline_metadata.suite_id} v{comparison.baseline_metadata.suite_version} · config {comparison.baseline_metadata.defense_config_id} · evaluator {comparison.baseline_metadata.evaluator_version}</p>
+            <p>Defended: {comparison.defended_metadata.target_id} v{comparison.defended_metadata.target_version} · suite {comparison.defended_metadata.suite_id} v{comparison.defended_metadata.suite_version} · config {comparison.defended_metadata.defense_config_id} · evaluator {comparison.defended_metadata.evaluator_version}</p>
+            <ul>{comparison.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}</ul>
+          </div>
           <div className="table-scroll"><table><caption>Verdicts, outcome status, and evidence aligned by exact case ID</caption><thead><tr><th scope="col">Case ID</th><th scope="col">Baseline</th><th scope="col">Defended</th><th scope="col">Change</th><th scope="col">Evidence / evaluator notes</th></tr></thead><tbody>{comparison.items.map((item) => <tr key={item.case_id}><th scope="row">{item.case_id}</th><td><span className={verdictClass(item.baseline_verdict)}>{item.baseline_verdict}</span><small>{item.baseline_reason}<br />Evidence: {item.baseline_evidence || "—"}</small></td><td><span className={verdictClass(item.defended_verdict)}>{item.defended_verdict}</span><small>{item.defended_reason}<br />Evidence: {item.defended_evidence || "—"}</small></td><td>{item.status}</td><td>{item.status === "needs_review" ? "At least one outcome is indeterminate/technical error; review manually." : item.status === "changed" ? "Verdict changed between runs." : "Verdict unchanged between runs."}</td></tr>)}</tbody></table></div>
         </section>}
 
