@@ -362,7 +362,7 @@ export default function Home() {
             <button className="button-secondary" onClick={loadHistory} disabled={historyLoading || apiStatus !== "connected"}>{historyLoading ? "Loading history…" : "Refresh history"}</button>
           </div>
           {busy && <div className="progress-wrap" role="status" aria-live="polite"><span className="spinner" aria-hidden="true" />Submitting request; the current API evaluates fixtures synchronously in-process.</div>}
-          {error && <div className="notice error-notice" role="alert"><strong>Request failed</strong><p>{error}</p></div>}
+          {error && <div className="notice error-notice" role="alert"><strong>Request failed</strong><p>{error}</p><div className="button-row"><button className="button-secondary" onClick={() => void startRun()} disabled={busy || apiStatus !== "connected"}>Retry run</button><button className="button-secondary" onClick={() => void loadHistory()} disabled={historyLoading || apiStatus !== "connected"}>Retry history</button></div></div>}
           {exportNotice && <p className="success-message" role="status">{exportNotice}</p>}
         </section>
 
