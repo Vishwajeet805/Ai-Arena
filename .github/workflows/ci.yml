@@ -41,3 +41,51 @@ jobs:
       - run: npm install
       - run: npm run typecheck
       - run: npm run build
+
+  docker-smoke:
+    name: Docker Compose runner smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build and start Compose stack
+        run: |
+          docker compose up --build -d
+          docker compose ps
+      - name: Show API and runner logs
+        if: always()
+        run: docker compose logs --tail=80 runner api
+      - name: Run API-to-runner smoke test
+        run: python scripts/smoke_test.py
+      - name: Verify runner-down behavior returns ERROR verdicts
+        run: |
+          docker compose stop runner
+          python - <<'PY'
+          import json
+          import urllib.request
+
+          body = json.dumps({
+              "target_id": "demo_assistant",
+              "suite_id": "baseline",
+              "defense_mode": "off",
+          }).encode()
+          request = urllib.request.Request(
+              "http://127.0.0.1:8000/api/v1/runs",
+              data=body,
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
+          with urllib.request.urlopen(request, timeout=60) as response:
+              run = json.loads(response.read())
+          verdicts = [case["verdict"] for case in run["results"]]
+          print("run status:", run["status"])
+          print("runner-down verdicts:", verdicts)
+          assert run["status"] == "completed", "API did not complete the run gracefully"
+          assert verdicts and all(v == "ERROR" for v in verdicts), "Runner-down cases must all be ERROR"
+          PY
+          docker compose start runner
+      - name: Clean up Compose stack
+        if: always()
+        run: docker compose down -v
