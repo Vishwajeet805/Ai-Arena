@@ -1,6 +1,7 @@
 """OpenAI-compatible chat-completions adapter for explicitly authorized test targets."""
 import json
 import os
+import re
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
@@ -34,7 +35,6 @@ def _configuration() -> tuple[str, str, str, float]:
             and not parsed.query
             and not parsed.fragment
         )
-        # Accessing port also validates malformed port values.
         _ = parsed.port
     except ValueError:
         valid_url = False
@@ -51,6 +51,27 @@ def _configuration() -> tuple[str, str, str, float]:
     if not 0 < timeout <= MAX_TIMEOUT_SECONDS:
         raise TargetAdapterError("Target timeout must be greater than 0 and at most 60 seconds.")
     return endpoint, model, api_key, timeout
+
+
+def _safe_provider_error(exc: HTTPError, api_key: str) -> str:
+    """Expose only short provider error identifiers, never raw response bodies."""
+    details = {}
+    try:
+        raw = exc.read(16_384)
+        payload = json.loads(raw.decode("utf-8", errors="replace"))
+        error = payload.get("error", {}) if isinstance(payload, dict) else {}
+        if isinstance(error, dict):
+            details = error
+    except (ValueError, OSError, AttributeError):
+        pass
+
+    parts = [f"Target HTTP error ({exc.code})."]
+    for field in ("code", "type"):
+        value = details.get(field)
+        if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", value):
+            parts.append(f"{field}={value}")
+    # Provider message text is intentionally omitted: it can contain arbitrary sensitive data.
+    return " ".join(parts)
 
 
 def call_configured_target(case: dict, defense_mode: str) -> str:
@@ -97,7 +118,6 @@ def call_configured_target(case: dict, defense_mode: str) -> str:
             raise TargetAdapterError("Target response was empty or malformed.")
         return text
     except HTTPError as exc:
-        # Provider response bodies/headers can contain sensitive values; never surface them.
-        raise TargetAdapterError(f"Target HTTP error ({exc.code}).") from None
+        raise TargetAdapterError(_safe_provider_error(exc, api_key)) from None
     except (URLError, TimeoutError, ValueError, KeyError, IndexError, TypeError):
         raise TargetAdapterError("Target connection timed out or returned invalid data.") from None
