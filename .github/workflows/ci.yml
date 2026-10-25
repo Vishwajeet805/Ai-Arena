@@ -115,9 +115,20 @@ jobs:
           expected_cases = [(r["case_id"], r["verdict"], r["reason"], r["response_excerpt"]) for r in created["results"]]
           assert created["status"] == "completed" and expected_cases
 
-          print("Restarting API and PostgreSQL containers; persisted run:", run_id)
+          print("Restarting PostgreSQL; persisted run:", run_id)
           import subprocess
-          subprocess.run(["docker", "compose", "restart", "db", "api"], check=True)
+          subprocess.run(["docker", "compose", "restart", "db"], check=True)
+          deadline = time.time() + 90
+          db_ready = False
+          while time.time() < deadline:
+              probe = subprocess.run(["docker", "compose", "exec", "-T", "db", "pg_isready", "-U", "arena", "-d", "arena"], capture_output=True, text=True)
+              if probe.returncode == 0:
+                  db_ready = True
+                  break
+              time.sleep(3)
+          if not db_ready:
+              raise RuntimeError("PostgreSQL did not become ready after restart")
+          subprocess.run(["docker", "compose", "restart", "api"], check=True)
 
           deadline = time.time() + 120
           last_error = None
