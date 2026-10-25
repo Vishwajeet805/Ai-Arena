@@ -54,9 +54,38 @@ jobs:
         run: |
           docker compose up --build -d
           docker compose ps
-      - name: Show API and runner logs
+      - name: Wait for API readiness
+        run: |
+          python - <<'PY'
+          import time
+          import urllib.error
+          import urllib.request
+
+          url = "http://127.0.0.1:8000/api/v1/health"
+          deadline = time.time() + 90
+          last_error = None
+          while time.time() < deadline:
+              try:
+                  with urllib.request.urlopen(url, timeout=3) as response:
+                      body = response.read().decode()
+                      print("health response:", body)
+                      if response.status == 200 and '"status":"ok"' in body.replace(" ", ""):
+                          print("API is ready")
+                          break
+                      last_error = f"unexpected response: HTTP {response.status} {body}"
+              except Exception as exc:
+                  last_error = repr(exc)
+              print("API not ready yet:", last_error)
+              time.sleep(3)
+          else:
+              print("API failed readiness check:", last_error)
+              raise SystemExit(1)
+          PY
+      - name: Show Compose status and API/runner logs
         if: always()
-        run: docker compose logs --tail=80 runner api
+        run: |
+          docker compose ps
+          docker compose logs --tail=120 runner api db
       - name: Run API-to-runner smoke test
         run: python scripts/smoke_test.py
       - name: Verify runner-down behavior returns ERROR verdicts
@@ -85,7 +114,9 @@ jobs:
           assert run["status"] == "completed", "API did not complete the run gracefully"
           assert verdicts and all(v == "ERROR" for v in verdicts), "Runner-down cases must all be ERROR"
           PY
-          docker compose start runner
+      - name: Restart runner after failure-mode check
+        if: always()
+        run: docker compose start runner
       - name: Clean up Compose stack
         if: always()
         run: docker compose down -v
