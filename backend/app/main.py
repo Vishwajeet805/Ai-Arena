@@ -243,10 +243,27 @@ def _run_case(case: dict, defense_mode: str, target_id: str = "demo_assistant") 
             "response_excerpt": "",
         }
     except TargetAdapterError as exc:
-        # Adapter errors are deliberately sanitized and never include credentials or provider bodies.
+        # Only surface messages from the adapter's known safe diagnostic vocabulary.
+        # This also prevents arbitrary/mocked exceptions from leaking their text.
+        message = str(exc)
+        safe_prefixes = (
+            "Real target is not configured;",
+            "Target endpoint configuration is invalid.",
+            "Target endpoint must be a valid HTTPS URL",
+            "Target model configuration is invalid.",
+            "Target timeout must be ",
+            "Target returned a non-success HTTP status.",
+            "Target response exceeded the 1 MB response limit.",
+            "Target response was empty or malformed.",
+            "Target connection timed out or returned invalid data.",
+        )
+        safe_reason = message if message.startswith(safe_prefixes) else (
+            message if __import__("re").fullmatch(r"Target HTTP error \\([1-5][0-9][0-9]\\)\\.", message)
+            else "The configured target failed; check its endpoint, model, API key, and provider limits."
+        )
         return {
             "case_id": case["case_id"], "category": case["category"], "verdict": "ERROR",
-            "reason": str(exc),
+            "reason": safe_reason,
             "response_excerpt": "",
         }
     except Exception as exc:  # noqa: BLE001 - isolate one case from the rest of the run
