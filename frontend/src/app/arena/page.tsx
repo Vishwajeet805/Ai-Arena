@@ -160,14 +160,48 @@ export default function ArenaWorkspace() {
     setLatestRun(null);
     setComparison(null);
     try {
-      const result = await api<RunResult>("/api/v1/runs", {
-        method: "POST",
-        body: JSON.stringify({
-          target_id: targetId,
-          suite_id: suiteId,
-          defense_mode: defenseMode,
-        }),
-      });
+      const runPayload = {
+        target_id: targetId,
+        suite_id: suiteId,
+        defense_mode: defenseMode,
+      };
+      let result: RunResult;
+      if (targetId === "openai_compatible") {
+        const accessPassword = window.prompt(
+          "Enter the configured-model access password supplied by the project owner. This is not your provider API key.",
+        );
+        if (!accessPassword) throw new Error("Configured-model access cancelled.");
+        const sessionResponse = await fetch("/api/configured-target/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          cache: "no-store",
+          body: JSON.stringify({ password: accessPassword }),
+        });
+        const sessionBody = await sessionResponse.json().catch(() => ({})) as { detail?: string };
+        if (!sessionResponse.ok) {
+          throw new Error(sessionBody.detail ?? `Configured-model access failed (${sessionResponse.status}).`);
+        }
+        const runResponse = await fetch("/api/configured-target/run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          cache: "no-store",
+          body: JSON.stringify(runPayload),
+        });
+        const runBody = await runResponse.json().catch(() => ({}));
+        if (!runResponse.ok) {
+          throw new Error(
+            (runBody as { detail?: string }).detail ?? `Run request failed (${runResponse.status}).`,
+          );
+        }
+        result = runBody as RunResult;
+      } else {
+        result = await api<RunResult>("/api/v1/runs", {
+          method: "POST",
+          body: JSON.stringify(runPayload),
+        });
+      }
       setLatestRun(result);
       if (result.status === "failed") {
         setRunStatus("failed");
