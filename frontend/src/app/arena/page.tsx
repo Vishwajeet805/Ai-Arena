@@ -373,7 +373,7 @@ export default function ArenaWorkspace() {
               <select id="target-select" value={targetId} onChange={(event) => setTargetId(event.target.value)} disabled={busy || apiStatus !== "connected"}>
                 <option value="demo_assistant">Synthetic demo assistant</option><option value="openai_compatible">Configured model · trusted API client only</option>
               </select>
-              <small>{targetId === "openai_compatible" ? "Requires backend enablement and an authorization token. This dashboard does not send that token; use a trusted API client. Provider credentials remain backend-only and execution is not sandboxed." : "Deterministic synthetic fixtures; no provider credentials are required."}</small>
+              <small>{targetId === "openai_compatible" ? "Requires backend enablement, server-side proxy secrets, and a separate access password. Provider credentials remain backend-only; configured execution is not sandboxed." : "Deterministic synthetic fixtures; no provider credentials are required."}</small>
             </label>
             <label htmlFor="suite-select"><span className="field-label">Test suite</span>
               <select id="suite-select" value={suiteId} onChange={(event) => setSuiteId(event.target.value)} disabled={busy || apiStatus !== "connected" || suites.length === 0}>
