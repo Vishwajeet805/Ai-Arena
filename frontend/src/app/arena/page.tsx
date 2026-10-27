@@ -160,14 +160,48 @@ export default function ArenaWorkspace() {
     setLatestRun(null);
     setComparison(null);
     try {
-      const result = await api<RunResult>("/api/v1/runs", {
-        method: "POST",
-        body: JSON.stringify({
-          target_id: targetId,
-          suite_id: suiteId,
-          defense_mode: defenseMode,
-        }),
-      });
+      const runPayload = {
+        target_id: targetId,
+        suite_id: suiteId,
+        defense_mode: defenseMode,
+      };
+      let result: RunResult;
+      if (targetId === "openai_compatible") {
+        const accessPassword = window.prompt(
+          "Enter the configured-model access password supplied by the project owner. This is not your provider API key.",
+        );
+        if (!accessPassword) throw new Error("Configured-model access cancelled.");
+        const sessionResponse = await fetch("/api/configured-target/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          cache: "no-store",
+          body: JSON.stringify({ password: accessPassword }),
+        });
+        const sessionBody = await sessionResponse.json().catch(() => ({})) as { detail?: string };
+        if (!sessionResponse.ok) {
+          throw new Error(sessionBody.detail ?? `Configured-model access failed (${sessionResponse.status}).`);
+        }
+        const runResponse = await fetch("/api/configured-target/run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          cache: "no-store",
+          body: JSON.stringify(runPayload),
+        });
+        const runBody = await runResponse.json().catch(() => ({}));
+        if (!runResponse.ok) {
+          throw new Error(
+            (runBody as { detail?: string }).detail ?? `Run request failed (${runResponse.status}).`,
+          );
+        }
+        result = runBody as RunResult;
+      } else {
+        result = await api<RunResult>("/api/v1/runs", {
+          method: "POST",
+          body: JSON.stringify(runPayload),
+        });
+      }
       setLatestRun(result);
       if (result.status === "failed") {
         setRunStatus("failed");
@@ -339,7 +373,7 @@ export default function ArenaWorkspace() {
               <select id="target-select" value={targetId} onChange={(event) => setTargetId(event.target.value)} disabled={busy || apiStatus !== "connected"}>
                 <option value="demo_assistant">Synthetic demo assistant</option><option value="openai_compatible">Configured model · trusted API client only</option>
               </select>
-              <small>{targetId === "openai_compatible" ? "Requires backend enablement and an authorization token. This dashboard does not send that token; use a trusted API client. Provider credentials remain backend-only and execution is not sandboxed." : "Deterministic synthetic fixtures; no provider credentials are required."}</small>
+              <small>{targetId === "openai_compatible" ? "Requires backend enablement, server-side proxy secrets, and a separate access password. Provider credentials remain backend-only; configured execution is not sandboxed." : "Deterministic synthetic fixtures; no provider credentials are required."}</small>
             </label>
             <label htmlFor="suite-select"><span className="field-label">Test suite</span>
               <select id="suite-select" value={suiteId} onChange={(event) => setSuiteId(event.target.value)} disabled={busy || apiStatus !== "connected" || suites.length === 0}>
